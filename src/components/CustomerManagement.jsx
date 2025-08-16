@@ -507,24 +507,6 @@ function CustomerManagement() {
                         <span className="text-gray-500">Email:</span>
                         <p className="font-medium truncate">{customer.email}</p>
                       </div>
-                      <div>
-                        <span className="text-gray-500">Số dư:</span>
-                        <p className="font-semibold text-green-600">
-                          {customer.soDuHienTai} VND
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Trạng thái:</span>
-                        <span
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            customer.trangThaiKH === "Hoạt động"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {customer.trangThaiKH}
-                        </span>
-                      </div>
                     </div>
 
                     <div className="flex justify-end space-x-2 mt-3 pt-3 border-t border-gray-100">
@@ -645,18 +627,6 @@ function CustomerManagement() {
                 <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   TRẠNG THÁI
                 </th>
-                <th className="hidden lg:table-cell px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  SỐ TÀI KHOẢN
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  SỐ DƯ
-                </th>
-                <th className="hidden xl:table-cell px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  NGÀY MỞ TK
-                </th>
-                <th className="hidden lg:table-cell px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  CHI NHÁNH
-                </th>
                 <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   HÀNH ĐỘNG
                 </th>
@@ -705,22 +675,6 @@ function CustomerManagement() {
                     >
                       {customer.trangThaiKH}
                     </span>
-                  </td>
-                  <td className="hidden lg:table-cell px-3 py-3 whitespace-nowrap text-sm text-gray-600 font-mono">
-                    <div className="max-w-32 truncate">
-                      {customer.soTaiKhoan}
-                    </div>
-                  </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900 font-semibold">
-                    <div className="max-w-24 truncate">
-                      {customer.soDuHienTai} VND
-                    </div>
-                  </td>
-                  <td className="hidden xl:table-cell px-3 py-3 whitespace-nowrap text-sm text-gray-600">
-                    {customer.ngayMoTK}
-                  </td>
-                  <td className="hidden lg:table-cell px-3 py-3 whitespace-nowrap text-sm text-gray-600">
-                    <div className="max-w-20 truncate">{customer.chiNhanh}</div>
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600">
                     <div className="flex space-x-1">

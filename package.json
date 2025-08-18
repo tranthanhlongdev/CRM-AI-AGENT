@@ -7,11 +7,20 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:bot": "node test-bot-integration.js",
+    "test:bot:local": "node test-bot-integration.js http://localhost:5000",
+    "test:bot:prod": "node test-bot-integration.js https://your-backend-url.com",
+    "test:cards": "bash test-cards-api.sh",
+    "test:cards:local": "bash test-cards-api.sh http://localhost:5000",
+    "test:cards:ps": "powershell -ExecutionPolicy Bypass -File test-cards-api.ps1",
+    "test:cards:integration": "node test-cards-integration.js",
+    "test:cards:integration:local": "node test-cards-integration.js http://localhost:5000"
   },
   "dependencies": {
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "react-router-dom": "^7.8.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",

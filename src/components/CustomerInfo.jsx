@@ -901,103 +901,102 @@ function CustomerInfo({ prefill }) {
         )}
 
         {activeTab === "san-pham-dv" && (
-          <div className="space-y-4 sm:space-y-6">
-            {/* Banking Service Navigation */}
-            <div className="bg-white border border-gray-200 rounded-lg sm:rounded-xl shadow-sm overflow-hidden">
-              <div className="bg-gradient-to-r from-indigo-50 to-indigo-100 px-4 sm:px-6 py-3 sm:py-4 border-b border-indigo-200">
-                <div className="flex items-center">
-                  <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg bg-indigo-500 text-white flex items-center justify-center mr-3">
-                    <svg
-                      className="w-4 h-4 sm:w-5 sm:h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                      />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">
-                      Sản Phẩm Dịch Vụ Ngân Hàng
-                    </h3>
-                    <p className="text-xs sm:text-sm text-indigo-600">
-                      Quản lý toàn bộ sản phẩm dịch vụ ngân hàng
-                    </p>
-                  </div>
+          <div className="space-y-4">
+            {/* Simple Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="h-8 w-8 rounded-lg bg-indigo-500 text-white flex items-center justify-center">
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                    />
+                  </svg>
                 </div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Sản Phẩm Dịch Vụ Ngân Hàng
+                </h3>
               </div>
+            </div>
 
-              {/* Service Tabs */}
-              <div className="px-4 sm:px-6 py-3 border-b border-gray-200 bg-gray-50">
-                <div className="flex space-x-2 sm:space-x-3 overflow-x-auto">
-                  <button
-                    onClick={() => setActiveBankingTab("tai-khoan-thanh-toan")}
-                    className={`py-2 px-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                      activeBankingTab === "tai-khoan-thanh-toan"
-                        ? "bg-indigo-500 text-white"
-                        : "text-gray-600 hover:text-indigo-600 hover:bg-indigo-50"
-                    }`}
-                  >
-                    Tài khoản thanh toán
-                  </button>
-                  <button
-                    onClick={() => setActiveBankingTab("the")}
-                    className={`py-2 px-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                      activeBankingTab === "the"
-                        ? "bg-indigo-500 text-white"
-                        : "text-gray-600 hover:text-indigo-600 hover:bg-indigo-50"
-                    }`}
-                  >
-                    Thẻ
-                  </button>
-                  <button
-                    onClick={() => setActiveBankingTab("tiet-kiem")}
-                    className={`py-2 px-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                      activeBankingTab === "tiet-kiem"
-                        ? "bg-indigo-500 text-white"
-                        : "text-gray-600 hover:text-indigo-600 hover:bg-indigo-50"
-                    }`}
-                  >
-                    Tiết kiệm
-                  </button>
-                  <button
-                    onClick={() => setActiveBankingTab("khoan-vay")}
-                    className={`py-2 px-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                      activeBankingTab === "khoan-vay"
-                        ? "bg-indigo-500 text-white"
-                        : "text-gray-600 hover:text-indigo-600 hover:bg-indigo-50"
-                    }`}
-                  >
-                    Khoản vay
-                  </button>
-                  <button
-                    onClick={() => setActiveBankingTab("sms-banking")}
-                    className={`py-2 px-3 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                      activeBankingTab === "sms-banking"
-                        ? "bg-indigo-500 text-white"
-                        : "text-gray-600 hover:text-indigo-600 hover:bg-indigo-50"
-                    }`}
-                  >
-                    SMS Banking
-                  </button>
-                </div>
+            {/* Flat Service Navigation */}
+            <div className="border-b border-gray-200">
+              <div className="flex space-x-8 overflow-x-auto">
+                <button
+                  onClick={() => setActiveBankingTab("tai-khoan-thanh-toan")}
+                  className={`py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    activeBankingTab === "tai-khoan-thanh-toan"
+                      ? "text-indigo-600 border-indigo-500"
+                      : "text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Tài khoản thanh toán
+                </button>
+                <button
+                  onClick={() => setActiveBankingTab("the")}
+                  className={`py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    activeBankingTab === "the"
+                      ? "text-indigo-600 border-indigo-500"
+                      : "text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Thẻ
+                </button>
+                <button
+                  onClick={() => setActiveBankingTab("tiet-kiem")}
+                  className={`py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    activeBankingTab === "tiet-kiem"
+                      ? "text-indigo-600 border-indigo-500"
+                      : "text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Tiết kiệm
+                </button>
+                <button
+                  onClick={() => setActiveBankingTab("khoan-vay")}
+                  className={`py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    activeBankingTab === "khoan-vay"
+                      ? "text-indigo-600 border-indigo-500"
+                      : "text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Khoản vay
+                </button>
+                <button
+                  onClick={() => setActiveBankingTab("sms-banking")}
+                  className={`py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    activeBankingTab === "sms-banking"
+                      ? "text-indigo-600 border-indigo-500"
+                      : "text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  SMS Banking
+                </button>
               </div>
+            </div>
 
-              {/* Banking Service Content */}
-              <div className="p-4 sm:p-6">
-                {activeBankingTab === "tai-khoan-thanh-toan" && (
-                  <PaymentAccount />
-                )}
-                {activeBankingTab === "the" && <CardManagement />}
-                {activeBankingTab === "tiet-kiem" && <SavingsAccount />}
-                {activeBankingTab === "khoan-vay" && <LoanManagement />}
-                {activeBankingTab === "sms-banking" && <SMSBanking />}
-              </div>
+            {/* Banking Service Content - No wrapper card */}
+            <div className="pt-4">
+              {activeBankingTab === "tai-khoan-thanh-toan" && (
+                <PaymentAccount />
+              )}
+              {activeBankingTab === "the" && (
+                <CardManagement
+                  customerCIF={
+                    prefill?.cifNumber || prefill?.cif || caller?.cif
+                  }
+                />
+              )}
+              {activeBankingTab === "tiet-kiem" && <SavingsAccount />}
+              {activeBankingTab === "khoan-vay" && <LoanManagement />}
+              {activeBankingTab === "sms-banking" && <SMSBanking />}
             </div>
           </div>
         )}

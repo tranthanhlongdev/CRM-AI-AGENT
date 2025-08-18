@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HDBank Card Notification Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @keyframes shrink-width {
+        from {
+          width: 100%;
+        }
+        to {
+          width: 0%;
+        }
+      }
+
+      @keyframes slideIn {
+        from {
+          transform: translateY(-10px);
+          opacity: 0;
+          scale: 0.95;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+          scale: 1;
+        }
+      }
+
+      @keyframes slideOut {
+        from {
+          transform: translateY(0);
+          opacity: 1;
+          scale: 1;
+        }
+        to {
+          transform: translateY(-10px);
+          opacity: 0;
+          scale: 0.95;
+        }
+      }
+
+      .notification-enter {
+        animation: slideIn 0.3s ease-out forwards;
+      }
+
+      .notification-exit {
+        animation: slideOut 0.3s ease-out forwards;
+      }
+
+      .progress-bar {
+        animation: shrink-width var(--duration) linear forwards;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+      <div class="bg-white rounded-lg shadow-lg p-8">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">
+          🏦 HDBank Card Notification System Demo
+        </h1>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <button
+            onclick="showNotification('success', 'Khóa thẻ thành công! 🔒', 'Thẻ HDBank Visa Premium đã được khóa an toàn.')"
+            class="px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all duration-200 transform hover:scale-105"
+          >
+            ✅ Khóa thẻ thành công
+          </button>
+
+          <button
+            onclick="showNotification('success', 'Mở khóa thẻ thành công! 🔓', 'Thẻ HDBank Debit Classic đã được kích hoạt.')"
+            class="px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all duration-200 transform hover:scale-105"
+          >
+            🔓 Mở khóa thẻ thành công
+          </button>
+
+          <button
+            onclick="showNotification('error', 'Khóa thẻ thất bại! ❌', 'Không thể khóa thẻ. Vui lòng thử lại sau.')"
+            class="px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all duration-200 transform hover:scale-105"
+          >
+            ❌ Khóa thẻ thất bại
+          </button>
+
+          <button
+            onclick="showNotification('error', 'Lỗi hệ thống! ⚠️', 'Có lỗi xảy ra khi kết nối với máy chủ. Vui lòng kiểm tra kết nối mạng.')"
+            class="px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-all duration-200 transform hover:scale-105"
+          >
+            ⚠️ Lỗi hệ thống
+          </button>
+        </div>
+
+        <div class="bg-gray-50 rounded-lg p-6">
+          <h2 class="text-xl font-semibold text-gray-800 mb-4">
+            Tính năng Notification System:
+          </h2>
+          <ul class="space-y-2 text-gray-600">
+            <li class="flex items-center">
+              <span class="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+              Auto-close với progress bar (4 giây cho success, manual close cho
+              error)
+            </li>
+            <li class="flex items-center">
+              <span class="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
+              Smooth animations với Tailwind CSS
+            </li>
+            <li class="flex items-center">
+              <span class="w-2 h-2 bg-purple-500 rounded-full mr-3"></span>
+              Responsive design phù hợp với mobile
+            </li>
+            <li class="flex items-center">
+              <span class="w-2 h-2 bg-yellow-500 rounded-full mr-3"></span>
+              4 loại notification: Success, Error, Warning, Info
+            </li>
+            <li class="flex items-center">
+              <span class="w-2 h-2 bg-red-500 rounded-full mr-3"></span>
+              Fixed position tại top-center để dễ nhận biết
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div
+      id="notification-container"
+      class="fixed inset-0 flex items-start justify-center pt-4 px-4 z-50 pointer-events-none"
+    ></div>
+
+    <script>
+      let currentNotification = null;
+
+      function showNotification(type, title, message) {
+        // Remove existing notification
+        if (currentNotification) {
+          hideNotification();
+        }
+
+        const typeStyles = {
+          success: {
+            container: "bg-green-50 border-green-200",
+            icon: "text-green-400",
+            title: "text-green-800",
+            message: "text-green-700",
+            iconPath: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
+          },
+          error: {
+            container: "bg-red-50 border-red-200",
+            icon: "text-red-400",
+            title: "text-red-800",
+            message: "text-red-700",
+            iconPath:
+              "M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z",
+          },
+        };
+
+        const styles = typeStyles[type] || typeStyles.success;
+        const autoClose = type === "success";
+        const duration = 4000;
+
+        const notificationHTML = `
+                <div class="w-full max-w-sm pointer-events-auto">
+                    <div class="rounded-lg p-4 shadow-lg border transition-all duration-300 ease-in-out transform notification-enter ${
+                      styles.container
+                    }">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <svg class="h-6 w-6 ${
+                                  styles.icon
+                                }" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="${
+                                      styles.iconPath
+                                    }" />
+                                </svg>
+                            </div>
+                            
+                            <div class="ml-3 w-0 flex-1">
+                                <p class="text-sm font-medium ${
+                                  styles.title
+                                }">${title}</p>
+                                <p class="text-sm ${
+                                  styles.message
+                                } mt-1">${message}</p>
+                            </div>
+
+                            <div class="ml-4 flex-shrink-0 flex">
+                                <button type="button" onclick="hideNotification()" class="bg-white rounded-md inline-flex text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                                    <span class="sr-only">Close</span>
+                                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        ${
+                          autoClose
+                            ? `
+                            <div class="mt-3 bg-white bg-opacity-30 rounded-full h-1 overflow-hidden">
+                                <div class="h-full bg-current opacity-60 rounded-full ${styles.icon} progress-bar" style="--duration: ${duration}ms"></div>
+                            </div>
+                        `
+                            : ""
+                        }
+                    </div>
+                </div>
+            `;
+
+        const container = document.getElementById("notification-container");
+        container.innerHTML = notificationHTML;
+        currentNotification = container.firstElementChild;
+
+        // Auto close for success notifications
+        if (autoClose) {
+          setTimeout(() => {
+            hideNotification();
+          }, duration);
+        }
+      }
+
+      function hideNotification() {
+        if (currentNotification) {
+          const notification = currentNotification.querySelector("div");
+          notification.classList.remove("notification-enter");
+          notification.classList.add("notification-exit");
+
+          setTimeout(() => {
+            const container = document.getElementById("notification-container");
+            container.innerHTML = "";
+            currentNotification = null;
+          }, 300);
+        }
+      }
+    </script>
+  </body>
+</html>

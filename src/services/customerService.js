@@ -185,6 +185,91 @@ class CustomerService {
       throw error;
     }
   }
+
+  /**
+   * Tìm khách hàng theo số điện thoại (cho bot chat)
+   * @param {string} phoneNumber - Số điện thoại
+   * @returns {Promise<Object>} - Thông tin khách hàng
+   */
+  async getCustomerByPhone(phoneNumber) {
+    try {
+      // Mock data cho demo - trong thực tế sẽ gọi API backend
+      const mockCustomers = [
+        {
+          phone: "0123456789",
+          name: "Nguyễn Văn A",
+          cif: "CIF001234567",
+          hoTen: "Nguyễn Văn A",
+          cifNumber: "CIF001234567",
+          personalInfo: {
+            hoTen: "Nguyễn Văn A",
+            cifNumber: "CIF001234567",
+            cmnd: "123456789",
+            ngaySinh: "01/01/1990",
+            gioiTinh: "Nam",
+            diaChi: "123 Phố Huế, Hai Bà Trưng, Hà Nội",
+          },
+          contactInfo: {
+            soDienThoai: "0123456789",
+            email: "nguyenvana@email.com",
+          },
+          accountInfo: {
+            loaiKhachHang: "Cá nhân",
+            nganHangTaiKhoan: "HDBank",
+            soTaiKhoan: "1234567890123456",
+            soDuHienTai: "15,750,000 VND",
+            ngayMoTK: "15/03/2022",
+            trangThaiKH: "Hoạt động",
+          },
+        },
+        {
+          phone: "0987654321",
+          name: "Trần Thị B",
+          cif: "CIF007654321",
+          hoTen: "Trần Thị B",
+          cifNumber: "CIF007654321",
+          personalInfo: {
+            hoTen: "Trần Thị B",
+            cifNumber: "CIF007654321",
+            cmnd: "987654321",
+            ngaySinh: "15/05/1985",
+            gioiTinh: "Nữ",
+            diaChi: "456 Láng Hạ, Đống Đa, Hà Nội",
+          },
+          contactInfo: {
+            soDienThoai: "0987654321",
+            email: "tranthib@email.com",
+          },
+          accountInfo: {
+            loaiKhachHang: "Cá nhân",
+            nganHangTaiKhoan: "HDBank",
+            soTaiKhoan: "9876543210987654",
+            soDuHienTai: "25,340,500 VND",
+            ngayMoTK: "08/01/2023",
+            trangThaiKH: "Hoạt động",
+          },
+        },
+      ];
+
+      // Tìm khách hàng theo số điện thoại
+      const customer = mockCustomers.find((c) => c.phone === phoneNumber);
+
+      if (customer) {
+        return { data: customer };
+      } else {
+        // Trong thực tế, có thể gọi API tìm kiếm với tham số phone
+        // const response = await fetch(
+        //   this.getFullURL(`${this.endpoints.SEARCH_BY_PHONE}/${phoneNumber}`),
+        //   this.createRequestOptions("GET", null, this.createAuthHeaders())
+        // );
+        // return await this.handleResponse(response);
+        return { data: null };
+      }
+    } catch (error) {
+      console.error("Error getting customer by phone:", error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance

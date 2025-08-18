@@ -47,6 +47,18 @@ const API_CONFIG = {
       FORGOT_PASSWORD: "/api/auth/forgot-password",
       RESET_PASSWORD: "/api/auth/reset-password",
     },
+    BOT: {
+      VERIFY_PHONE: "/api/bot/verify-phone",
+      CHAT: "/api/bot/chat",
+      CONVERSATION: "/api/bot/conversation", // GET /api/bot/conversation/{id}
+    },
+    CARDS: {
+      BY_CIF: "/api/cards/by-cif", // GET /api/cards/by-cif/{cifNumber}
+      BLOCK: "/api/cards/block",
+      UNBLOCK: "/api/cards/unblock",
+      DETAIL: "/api/cards", // GET /api/cards/{cardId}
+      TRANSACTIONS: "/api/cards/transactions", // GET /api/cards/{cardId}/transactions
+    },
   },
 
   // Request timeout (milliseconds)

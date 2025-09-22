@@ -1,0 +1,626 @@
+==========================================
+CRM WEBSOCKET INTEGRATION - NHẬN CUỘC GỌI
+==========================================
+
+🎯 TỔNG QUAN
+============
+
+Khi customer gọi từ softphone, CRM system sẽ nhận được WebSocket events để:
+- Hiển thị incoming call popup
+- Cho phép agent answer/reject từ CRM
+- Track call status real-time
+- Integrate với customer data
+
+🔌 WEBSOCKET EVENTS CHO CRM
+===========================
+
+## 1. Connection Setup
+
+```javascript
+// Kết nối WebSocket từ CRM
+const socket = io('http://localhost:8000');
+
+// CRM join vào call center room
+socket.emit('join_call_center', {
+    userType: 'crm_system',
+    userId: 'crm_main',
+    clientInfo: {
+        platform: 'web',
+        version: '1.0.0',
+        userAgent: navigator.userAgent
+    }
+});
+
+socket.on('call_center_joined', (data) => {
+    console.log('CRM đã join call center:', data);
+});
+```
+
+## 2. Incoming Call Events
+
+```javascript
+// Sự kiện có cuộc gọi đến
+socket.on('incoming_call', (data) => {
+    console.log('📞 Incoming call:', data);
+    showIncomingCallPopup(data);
+});
+
+// Sự kiện cuộc gọi được answered
+socket.on('call_answered', (data) => {
+    console.log('✅ Call answered:', data);
+    updateCallStatus(data.call.callId, 'answered');
+    hideIncomingCallPopup(data.call.callId);
+});
+
+// Sự kiện cuộc gọi kết thúc
+socket.on('call_ended', (data) => {
+    console.log('📴 Call ended:', data);
+    updateCallStatus(data.callId, 'ended');
+    hideIncomingCallPopup(data.callId);
+});
+
+// Sự kiện agent status thay đổi
+socket.on('agent_status_update', (data) => {
+    console.log('👤 Agent status:', data);
+    updateAgentStatusInCRM(data);
+});
+
+// Sự kiện call queue update
+socket.on('call_queue_update', (data) => {
+    console.log('📋 Queue update:', data);
+    updateCallQueueDisplay(data);
+});
+```
+
+## 3. CRM Actions
+
+```javascript
+// CRM có thể thực hiện các action
+function answerCallFromCRM(callId, agentId) {
+    socket.emit('answer_call', {
+        callId: callId,
+        agentId: agentId,
+        source: 'crm_system'
+    });
+}
+
+function rejectCallFromCRM(callId, reason) {
+    socket.emit('end_call', {
+        callId: callId,
+        endReason: reason || 'crm_reject',
+        source: 'crm_system'
+    });
+}
+
+function transferCall(callId, fromAgentId, toAgentId) {
+    socket.emit('transfer_call', {
+        callId: callId,
+        fromAgentId: fromAgentId,
+        toAgentId: toAgentId,
+        source: 'crm_system'
+    });
+}
+```
+
+📱 CRM UI INTEGRATION
+=====================
+
+## 1. Incoming Call Popup
+
+```html
+<!-- Popup hiển thị cuộc gọi đến -->
+<div id="incomingCallModal" class="call-modal" style="display: none;">
+    <div class="modal-content">
+        <div class="caller-info">
+            <h3>📞 Cuộc gọi đến</h3>
+            <div class="caller-details">
+                <p><strong>Số điện thoại:</strong> <span id="callerNumber"></span></p>
+                <p><strong>Call ID:</strong> <span id="callId"></span></p>
+                <p><strong>Thời gian:</strong> <span id="callTime"></span></p>
+            </div>
+            <div id="customerInfo" class="customer-info">
+                <!-- Customer data sẽ được load ở đây -->
+            </div>
+        </div>
+        <div class="call-actions">
+            <button onclick="answerCall()" class="btn-answer">📞 Trả lời</button>
+            <button onclick="rejectCall()" class="btn-reject">❌ Từ chối</button>
+        </div>
+        <div class="agent-selection">
+            <label>Chọn Agent:</label>
+            <select id="agentSelect">
+                <!-- Agents list -->
+            </select>
+        </div>
+    </div>
+</div>
+
+<style>
+.call-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    max-width: 500px;
+    width: 90%;
+    animation: popupAnimation 0.3s ease-out;
+}
+
+@keyframes popupAnimation {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.caller-info {
+    margin-bottom: 20px;
+}
+
+.call-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.btn-answer {
+    background: #4CAF50;
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.btn-reject {
+    background: #f44336;
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.customer-info {
+    background: #f5f5f5;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 15px 0;
+}
+</style>
+```
+
+## 2. CRM JavaScript Integration
+
+```javascript
+class CRMCallIntegration {
+    constructor() {
+        this.socket = null;
+        this.currentCall = null;
+        this.availableAgents = [];
+        
+        this.initSocket();
+        this.loadAgents();
+    }
+
+    initSocket() {
+        this.socket = io('http://localhost:8000');
+        
+        this.socket.on('connect', () => {
+            console.log('✅ CRM connected to call system');
+            this.joinCallCenter();
+        });
+
+        this.socket.on('incoming_call', (data) => {
+            this.handleIncomingCall(data);
+        });
+
+        this.socket.on('call_answered', (data) => {
+            this.handleCallAnswered(data);
+        });
+
+        this.socket.on('call_ended', (data) => {
+            this.handleCallEnded(data);
+        });
+
+        this.socket.on('agent_status_update', (data) => {
+            this.updateAgentStatus(data);
+        });
+
+        this.socket.on('call_queue_update', (data) => {
+            this.updateCallQueue(data);
+        });
+    }
+
+    joinCallCenter() {
+        this.socket.emit('join_call_center', {
+            userType: 'crm_system',
+            userId: 'crm_main',
+            clientInfo: {
+                platform: 'web',
+                version: '1.0.0',
+                timestamp: new Date().toISOString()
+            }
+        });
+    }
+
+    async handleIncomingCall(callData) {
+        console.log('📞 Incoming call received:', callData);
+        
+        this.currentCall = callData;
+        
+        // Load customer data
+        const customerInfo = await this.loadCustomerInfo(callData.callerNumber);
+        
+        // Show popup
+        this.showIncomingCallPopup(callData, customerInfo);
+        
+        // Play ring tone (optional)
+        this.playRingtone();
+        
+        // Show notification
+        this.showBrowserNotification(callData);
+    }
+
+    async loadCustomerInfo(phoneNumber) {
+        try {
+            // Search customer by phone number
+            const response = await fetch('/api/customers/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    phoneNumber: phoneNumber,
+                    exactMatch: true
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success && result.data.customers.length > 0) {
+                return result.data.customers[0];
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Error loading customer info:', error);
+            return null;
+        }
+    }
+
+    showIncomingCallPopup(callData, customerInfo) {
+        // Update popup content
+        document.getElementById('callerNumber').textContent = callData.callerNumber;
+        document.getElementById('callId').textContent = callData.callId;
+        document.getElementById('callTime').textContent = new Date().toLocaleTimeString();
+        
+        // Update customer info
+        const customerInfoEl = document.getElementById('customerInfo');
+        if (customerInfo) {
+            customerInfoEl.innerHTML = `
+                <h4>Thông tin khách hàng:</h4>
+                <p><strong>Tên:</strong> ${customerInfo.fullName}</p>
+                <p><strong>Email:</strong> ${customerInfo.email || 'N/A'}</p>
+                <p><strong>CIF:</strong> ${customerInfo.cif || 'N/A'}</p>
+                <p><strong>Địa chỉ:</strong> ${customerInfo.address || 'N/A'}</p>
+            `;
+        } else {
+            customerInfoEl.innerHTML = `
+                <h4>Khách hàng mới:</h4>
+                <p>Không tìm thấy thông tin trong hệ thống</p>
+                <button onclick="createNewCustomer('${callData.callerNumber}')" class="btn-create-customer">
+                    Tạo khách hàng mới
+                </button>
+            `;
+        }
+        
+        // Load available agents
+        this.updateAgentSelect();
+        
+        // Show modal
+        document.getElementById('incomingCallModal').style.display = 'flex';
+    }
+
+    hideIncomingCallPopup() {
+        document.getElementById('incomingCallModal').style.display = 'none';
+        this.stopRingtone();
+    }
+
+    async loadAgents() {
+        try {
+            const response = await fetch('/api/agents/available');
+            const result = await response.json();
+            
+            if (result.success) {
+                this.availableAgents = result.data;
+                this.updateAgentSelect();
+            }
+        } catch (error) {
+            console.error('Error loading agents:', error);
+        }
+    }
+
+    updateAgentSelect() {
+        const select = document.getElementById('agentSelect');
+        select.innerHTML = '<option value="">Chọn agent...</option>';
+        
+        this.availableAgents.forEach(agent => {
+            if (agent.status === 'available') {
+                const option = document.createElement('option');
+                option.value = agent.id;
+                option.textContent = `${agent.fullName} (${agent.status})`;
+                select.appendChild(option);
+            }
+        });
+    }
+
+    answerCall() {
+        const agentId = document.getElementById('agentSelect').value;
+        
+        if (!agentId) {
+            alert('Vui lòng chọn agent');
+            return;
+        }
+        
+        if (!this.currentCall) {
+            alert('Không có cuộc gọi nào');
+            return;
+        }
+        
+        this.socket.emit('answer_call', {
+            callId: this.currentCall.callId,
+            agentId: parseInt(agentId),
+            source: 'crm_system'
+        });
+        
+        console.log(`📞 Answering call ${this.currentCall.callId} with agent ${agentId}`);
+    }
+
+    rejectCall() {
+        if (!this.currentCall) return;
+        
+        this.socket.emit('end_call', {
+            callId: this.currentCall.callId,
+            endReason: 'crm_reject',
+            source: 'crm_system'
+        });
+        
+        console.log(`❌ Rejecting call ${this.currentCall.callId}`);
+    }
+
+    handleCallAnswered(data) {
+        console.log('✅ Call answered:', data);
+        this.hideIncomingCallPopup();
+        
+        // Show success notification
+        this.showNotification('Cuộc gọi đã được kết nối', 'success');
+        
+        // Update CRM with call info
+        this.updateCRMCallStatus(data.call);
+    }
+
+    handleCallEnded(data) {
+        console.log('📴 Call ended:', data);
+        this.hideIncomingCallPopup();
+        this.currentCall = null;
+        
+        // Show notification
+        this.showNotification('Cuộc gọi đã kết thúc', 'info');
+    }
+
+    updateAgentStatus(data) {
+        console.log('👤 Agent status update:', data);
+        
+        // Update agent trong available list
+        const agentIndex = this.availableAgents.findIndex(a => a.id === data.agentId);
+        if (agentIndex !== -1) {
+            this.availableAgents[agentIndex].status = data.status;
+            this.updateAgentSelect();
+        }
+        
+        // Update CRM agent display
+        this.updateCRMAgentDisplay(data);
+    }
+
+    updateCallQueue(data) {
+        console.log('📋 Call queue update:', data);
+        
+        // Update CRM queue display
+        this.updateCRMQueueDisplay(data);
+    }
+
+    playRingtone() {
+        // Play ringtone sound
+        const audio = new Audio('/static/ringtone.mp3');
+        audio.loop = true;
+        audio.play().catch(e => console.log('Cannot play ringtone:', e));
+        this.ringtoneAudio = audio;
+    }
+
+    stopRingtone() {
+        if (this.ringtoneAudio) {
+            this.ringtoneAudio.pause();
+            this.ringtoneAudio = null;
+        }
+    }
+
+    showBrowserNotification(callData) {
+        if (Notification.permission === 'granted') {
+            new Notification('Cuộc gọi đến', {
+                body: `Từ: ${callData.callerNumber}`,
+                icon: '/static/phone-icon.png',
+                requireInteraction: true
+            });
+        }
+    }
+
+    showNotification(message, type = 'info') {
+        // Implement your notification system
+        console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+
+    updateCRMCallStatus(callData) {
+        // Update CRM interface with call status
+        // Implement based on your CRM structure
+    }
+
+    updateCRMAgentDisplay(agentData) {
+        // Update CRM agent list/status display
+        // Implement based on your CRM structure
+    }
+
+    updateCRMQueueDisplay(queueData) {
+        // Update CRM call queue display
+        // Implement based on your CRM structure
+    }
+}
+
+// Global functions for popup buttons
+function answerCall() {
+    if (window.crmCallIntegration) {
+        window.crmCallIntegration.answerCall();
+    }
+}
+
+function rejectCall() {
+    if (window.crmCallIntegration) {
+        window.crmCallIntegration.rejectCall();
+    }
+}
+
+function createNewCustomer(phoneNumber) {
+    // Open customer creation form
+    window.open(`/customers/create?phone=${phoneNumber}`, '_blank');
+}
+
+// Initialize when DOM loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Request notification permission
+    if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        Notification.requestPermission();
+    }
+    
+    // Initialize CRM call integration
+    window.crmCallIntegration = new CRMCallIntegration();
+});
+```
+
+🔧 BACKEND EVENTS CẬP NHẬT
+==========================
+
+Backend đã tự động emit các events sau:
+
+## Existing Events:
+- `incoming_call` - Khi có cuộc gọi đến
+- `call_answered` - Khi agent answer
+- `call_ended` - Khi cuộc gọi kết thúc  
+- `agent_status_update` - Khi agent thay đổi status
+- `call_queue_update` - Khi queue thay đổi
+
+## Additional Events for CRM:
+```javascript
+// Emit customer data với call
+socket.emit('incoming_call_with_customer', {
+    ...callData,
+    customerInfo: customerData || null
+});
+
+// Emit call metrics
+socket.emit('call_metrics_update', {
+    totalCalls: stats.totalCalls,
+    averageWaitTime: stats.avgWaitTime,
+    activeAgents: stats.activeAgents
+});
+```
+
+📊 CRM DASHBOARD WIDGETS
+========================
+
+## 1. Call Status Widget
+
+```html
+<div class="call-status-widget">
+    <h3>📞 Call Center Status</h3>
+    <div class="stats-grid">
+        <div class="stat-item">
+            <span class="stat-number" id="activeCalls">0</span>
+            <span class="stat-label">Active Calls</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-number" id="queuedCalls">0</span>
+            <span class="stat-label">Queued Calls</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-number" id="availableAgents">0</span>
+            <span class="stat-label">Available Agents</span>
+        </div>
+    </div>
+</div>
+```
+
+## 2. Recent Calls Widget
+
+```html
+<div class="recent-calls-widget">
+    <h3>📋 Recent Calls</h3>
+    <div id="recentCallsList">
+        <!-- Calls list will be populated here -->
+    </div>
+</div>
+```
+
+🚀 IMPLEMENTATION STEPS
+=======================
+
+### Step 1: Add to CRM HTML
+```html
+<!-- Thêm vào head của CRM -->
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+
+<!-- Thêm modal HTML -->
+<!-- [Copy modal HTML from above] -->
+
+<!-- Thêm CSS -->
+<!-- [Copy CSS from above] -->
+
+<!-- Thêm JavaScript -->
+<script>
+// [Copy JavaScript integration from above]
+</script>
+```
+
+### Step 2: Test Integration
+1. Mở CRM trong browser
+2. Gọi từ softphone (http://localhost:8000/softphone)
+3. CRM sẽ hiển thị popup incoming call
+4. Click "Trả lời" để kết nối cuộc gọi
+
+### Step 3: Customize for Your CRM
+- Adjust CSS để match CRM theme
+- Integrate với existing customer search
+- Add call logging functionality
+- Customize notification system
+
+==========================================
+CRM SẼ NHẬN ĐƯỢC INCOMING CALLS! 📞✨
+==========================================
+
+Với integration này, CRM sẽ real-time nhận và xử lý:
+✅ Incoming call popups
+✅ Customer data display  
+✅ Agent selection
+✅ Call answer/reject từ CRM
+✅ Real-time status updates

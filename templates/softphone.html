@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoiceBot Softphone Test</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        .status.connected { background: rgba(76, 175, 80, 0.3); }
+        .status.disconnected { background: rgba(244, 67, 54, 0.3); }
+        .status.calling { background: rgba(255, 152, 0, 0.3); }
+        .status.in-call { background: rgba(76, 175, 80, 0.5); }
+        
+        .phone-section {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 25px;
+            border-radius: 15px;
+            margin: 20px 0;
+        }
+        .phone-input {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.2em;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            backdrop-filter: blur(5px);
+        }
+        input[type="text"]::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        .btn {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .btn-call {
+            background: rgba(76, 175, 80, 0.8);
+            color: white;
+            min-width: 120px;
+        }
+        .btn-end {
+            background: rgba(244, 67, 54, 0.8);
+            color: white;
+            min-width: 120px;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .call-controls {
+            display: none;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        
+        .agents-section {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            margin: 20px 0;
+        }
+        .agent-card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .agent-status {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        .status-available { background: rgba(76, 175, 80, 0.8); }
+        .status-busy { background: rgba(255, 152, 0, 0.8); }
+        .status-offline { background: rgba(158, 158, 158, 0.8); }
+        
+        .log-section {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 15px;
+            margin: 20px 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+        .log-time {
+            color: rgba(255, 255, 255, 0.7);
+            margin-right: 10px;
+        }
+        
+        .test-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        .btn-test {
+            background: rgba(103, 58, 183, 0.8);
+            color: white;
+            flex: 1;
+            min-width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📞 VoiceBot Softphone</h1>
+        
+        <!-- Connection Status -->
+        <div id="connectionStatus" class="status disconnected">
+            🔴 Đang kết nối...
+        </div>
+        
+        <!-- Phone Input -->
+        <div class="phone-section">
+            <h3>📱 Thực hiện cuộc gọi</h3>
+            <div class="phone-input">
+                <input type="text" id="phoneNumber" placeholder="Nhập số điện thoại (VD: 0912345678)" value="0912345678">
+                <button id="callBtn" class="btn btn-call" onclick="makeCall()">📞 Gọi</button>
+                <button id="endBtn" class="btn btn-end" onclick="endCall()" disabled>📴 Kết thúc</button>
+            </div>
+            
+            <!-- Call Controls -->
+            <div id="callControls" class="call-controls">
+                <button class="btn" onclick="toggleMute()" style="background: rgba(255, 193, 7, 0.8);">🔇 Tắt tiếng</button>
+                <button class="btn" onclick="holdCall()" style="background: rgba(156, 39, 176, 0.8);">⏸️ Giữ máy</button>
+            </div>
+        </div>
+        
+        <!-- Available Agents -->
+        <div class="agents-section">
+            <h3>👥 Agents Available</h3>
+            <div id="agentsList">
+                <div class="agent-card">
+                    <span>Đang tải danh sách agents...</span>
+                </div>
+            </div>
+            <button class="btn btn-test" onclick="loadAgents()">🔄 Refresh Agents</button>
+        </div>
+        
+        <!-- Test Buttons -->
+        <div class="test-buttons">
+            <button class="btn btn-test" onclick="testCreateAgent()">👤 Tạo Test Agent</button>
+            <button class="btn btn-test" onclick="testAgentStatus()">📊 Kiểm tra Agent Status</button>
+            <button class="btn btn-test" onclick="testCallFlow()">🔄 Test Call Flow</button>
+        </div>
+        
+        <!-- Call Log -->
+        <div class="log-section">
+            <h3>📋 Call Log</h3>
+            <div id="callLog"></div>
+        </div>
+    </div>
+
+    <!-- Audio for remote stream -->
+    <audio id="remoteAudio" autoplay></audio>
+
+    <script>
+        // Global variables
+        let socket = null;
+        let currentCallId = null;
+        let currentStatus = 'idle';
+        let peerConnection = null;
+        let localStream = null;
+        let remoteStream = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            initSocket();
+            loadAgents();
+        });
+
+        // Socket.IO Connection
+        function initSocket() {
+            socket = io('http://localhost:8000');
+            
+            socket.on('connect', function() {
+                log('✅ Kết nối WebSocket thành công');
+                updateStatus('connected', '🟢 Đã kết nối');
+                
+                // Join call center room
+                socket.emit('join_call_center', {
+                    userType: 'customer',
+                    userId: 'softphone_test'
+                });
+            });
+
+            socket.on('disconnect', function() {
+                log('❌ Mất kết nối WebSocket');
+                updateStatus('disconnected', '🔴 Mất kết nối');
+            });
+
+            // Call events
+            socket.on('call_initiated', function(data) {
+                log('📞 Cuộc gọi được khởi tạo: ' + data.callId);
+                currentCallId = data.callId;
+                updateStatus('calling', '📞 Đang gọi...');
+                
+                if (data.status === 'queued') {
+                    log('⏳ Cuộc gọi đang chờ trong hàng đợi');
+                } else if (data.agentInfo) {
+                    log('👤 Đã tìm thấy agent: ' + data.agentInfo.fullName);
+                }
+            });
+
+            socket.on('call_connected', function(data) {
+                log('✅ Cuộc gọi đã kết nối với agent: ' + data.agent.fullName);
+                updateStatus('in-call', '📞 Đang trong cuộc gọi');
+                showCallControls(true);
+                
+                // Join WebRTC room for voice
+                socket.emit('join_call_room', {
+                    callId: data.callId,
+                    peerType: 'customer'
+                });
+                
+                // Start WebRTC
+                initWebRTC(data.callId);
+            });
+
+            socket.on('call_ended', function(data) {
+                log('📴 Cuộc gọi đã kết thúc: ' + data.message);
+                updateStatus('connected', '🟢 Đã kết nối');
+                showCallControls(false);
+                currentCallId = null;
+                
+                // Clean up WebRTC
+                if (peerConnection) {
+                    peerConnection.close();
+                    peerConnection = null;
+                }
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                    localStream = null;
+                }
+            });
+
+            socket.on('agent_status_update', function(data) {
+                log('👤 Agent status update: ' + data.agentName + ' - ' + data.status);
+                loadAgents(); // Refresh agents list
+            });
+
+            socket.on('call_queued', function(data) {
+                log('⏳ Cuộc gọi trong hàng đợi. Vị trí: ' + data.position);
+            });
+
+            // WebRTC events
+            socket.on('webrtc_offer_received', handleWebRTCOffer);
+            socket.on('webrtc_answer_received', handleWebRTCAnswer);
+            socket.on('webrtc_ice_candidate_received', handleWebRTCIceCandidate);
+            socket.on('peer_joined', function(data) {
+                log('👥 Peer joined: ' + data.peerType);
+                if (data.peerType === 'agent') {
+                    // Agent joined, customer creates offer
+                    createWebRTCOffer();
+                }
+            });
+        }
+
+        // WebRTC Functions
+        async function initWebRTC(callId) {
+            try {
+                // Get WebRTC config
+                const configResponse = await fetch('/api/webrtc/config');
+                const config = await configResponse.json();
+                
+                // Create peer connection
+                peerConnection = new RTCPeerConnection({
+                    iceServers: config.data.iceServers
+                });
+
+                // Setup events
+                peerConnection.onicecandidate = function(event) {
+                    if (event.candidate) {
+                        socket.emit('webrtc_ice_candidate', {
+                            callId: callId,
+                            candidate: event.candidate,
+                            fromPeer: 'customer'
+                        });
+                    }
+                };
+
+                peerConnection.ontrack = function(event) {
+                    log('🎧 Nhận được remote audio stream');
+                    remoteStream = event.streams[0];
+                    const audioElement = document.getElementById('remoteAudio');
+                    audioElement.srcObject = remoteStream;
+                };
+
+                // Get user media
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true
+                        },
+                        video: false
+                    });
+
+                    // Add tracks to peer connection
+                    localStream.getTracks().forEach(track => {
+                        peerConnection.addTrack(track, localStream);
+                    });
+
+                    log('🎤 Local audio stream ready');
+
+                } catch (error) {
+                    log('❌ Lỗi truy cập microphone: ' + error.message);
+                }
+
+            } catch (error) {
+                log('❌ Lỗi khởi tạo WebRTC: ' + error.message);
+            }
+        }
+
+        async function createWebRTCOffer() {
+            if (!peerConnection) return;
+            
+            try {
+                const offer = await peerConnection.createOffer({
+                    offerToReceiveAudio: true,
+                    offerToReceiveVideo: false
+                });
+
+                await peerConnection.setLocalDescription(offer);
+
+                socket.emit('webrtc_offer', {
+                    callId: currentCallId,
+                    offer: offer,
+                    fromPeer: 'customer'
+                });
+
+                log('📡 WebRTC offer sent');
+
+            } catch (error) {
+                log('❌ Lỗi tạo WebRTC offer: ' + error.message);
+            }
+        }
+
+        async function handleWebRTCOffer(data) {
+            // Customer typically doesn't receive offers, but handle anyway
+            if (data.callId !== currentCallId) return;
+            
+            try {
+                await peerConnection.setRemoteDescription(data.offer);
+                log('📡 WebRTC offer received');
+            } catch (error) {
+                log('❌ Lỗi xử lý WebRTC offer: ' + error.message);
+            }
+        }
+
+        async function handleWebRTCAnswer(data) {
+            if (data.callId !== currentCallId) return;
+            
+            try {
+                await peerConnection.setRemoteDescription(data.answer);
+                log('✅ WebRTC answer received - Voice call established!');
+            } catch (error) {
+                log('❌ Lỗi xử lý WebRTC answer: ' + error.message);
+            }
+        }
+
+        async function handleWebRTCIceCandidate(data) {
+            if (data.callId !== currentCallId) return;
+            
+            try {
+                await peerConnection.addIceCandidate(data.candidate);
+            } catch (error) {
+                log('❌ Lỗi xử lý ICE candidate: ' + error.message);
+            }
+        }
+
+        // Call functions
+        function makeCall() {
+            const phoneNumber = document.getElementById('phoneNumber').value;
+            if (!phoneNumber) {
+                alert('Vui lòng nhập số điện thoại');
+                return;
+            }
+
+            log('📞 Bắt đầu cuộc gọi tới: ' + phoneNumber);
+            
+            socket.emit('make_call', {
+                callerNumber: phoneNumber,
+                calledNumber: '1900'
+            });
+
+            document.getElementById('callBtn').disabled = true;
+            document.getElementById('endBtn').disabled = false;
+        }
+
+        function endCall() {
+            if (currentCallId) {
+                log('📴 Kết thúc cuộc gọi: ' + currentCallId);
+                
+                socket.emit('end_call', {
+                    callId: currentCallId,
+                    endReason: 'customer_hangup'
+                });
+            }
+
+            document.getElementById('callBtn').disabled = false;
+            document.getElementById('endBtn').disabled = true;
+        }
+
+        function toggleMute() {
+            if (localStream) {
+                const audioTrack = localStream.getAudioTracks()[0];
+                if (audioTrack) {
+                    audioTrack.enabled = !audioTrack.enabled;
+                    log(audioTrack.enabled ? '🔊 Unmuted' : '🔇 Muted');
+                    
+                    socket.emit('webrtc_media_state', {
+                        callId: currentCallId,
+                        peerType: 'customer',
+                        audioEnabled: audioTrack.enabled
+                    });
+                }
+            }
+        }
+
+        function holdCall() {
+            log('⏸️ Hold call feature - Coming soon!');
+        }
+
+        // Load agents
+        async function loadAgents() {
+            try {
+                const response = await fetch('/api/agents/status');
+                const result = await response.json();
+                
+                const agentsList = document.getElementById('agentsList');
+                
+                if (result.success && result.data.length > 0) {
+                    agentsList.innerHTML = result.data.map(agent => `
+                        <div class="agent-card">
+                            <div>
+                                <strong>${agent.fullName || agent.username}</strong>
+                                <br><small>ID: ${agent.id} | User ID: ${agent.userId}</small>
+                            </div>
+                            <span class="agent-status status-${agent.status}">
+                                ${agent.status.toUpperCase()}
+                            </span>
+                        </div>
+                    `).join('');
+                } else {
+                    agentsList.innerHTML = '<div class="agent-card"><span>Không có agents nào</span></div>';
+                }
+            } catch (error) {
+                log('❌ Lỗi tải danh sách agents: ' + error.message);
+            }
+        }
+
+        // Test functions
+        async function testCreateAgent() {
+            try {
+                const response = await fetch('/api/agents/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: 1, // admin user
+                        status: 'available',
+                        priority: 1
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    log('✅ Tạo agent thành công: ' + result.data.fullName);
+                    loadAgents();
+                } else {
+                    log('❌ Lỗi tạo agent: ' + result.message);
+                }
+            } catch (error) {
+                log('❌ Lỗi tạo agent: ' + error.message);
+            }
+        }
+
+        async function testAgentStatus() {
+            try {
+                const response = await fetch('/api/agents/available');
+                const result = await response.json();
+                
+                if (result.success) {
+                    log('📊 Available agents: ' + result.data.length);
+                    result.data.forEach(agent => {
+                        log('👤 ' + agent.fullName + ' - ' + agent.status);
+                    });
+                } else {
+                    log('❌ Lỗi kiểm tra agent status: ' + result.message);
+                }
+            } catch (error) {
+                log('❌ Lỗi kiểm tra agent status: ' + error.message);
+            }
+        }
+
+        async function testCallFlow() {
+            log('🔄 Bắt đầu test call flow...');
+            
+            // 1. Load agents
+            await loadAgents();
+            
+            // 2. Check available agents
+            await testAgentStatus();
+            
+            // 3. Auto call
+            document.getElementById('phoneNumber').value = '0912345678';
+            setTimeout(() => {
+                makeCall();
+            }, 1000);
+        }
+
+        // UI helper functions
+        function updateStatus(status, message) {
+            const statusEl = document.getElementById('connectionStatus');
+            statusEl.className = 'status ' + status;
+            statusEl.textContent = message;
+            currentStatus = status;
+        }
+
+        function showCallControls(show) {
+            const controls = document.getElementById('callControls');
+            controls.style.display = show ? 'flex' : 'none';
+        }
+
+        function log(message) {
+            const logEl = document.getElementById('callLog');
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-time">[${time}]</span>${message}`;
+            
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+            
+            console.log('[' + time + '] ' + message);
+        }
+    </script>
+</body>
+</html>

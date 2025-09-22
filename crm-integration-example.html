@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM Call Integration Example</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #555;
+        }
+        .button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .button:hover {
+            background: #1976D2;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .log {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+        .agents-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .agent-card {
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        .agent-status {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .agent-status.available { background: #d4edda; color: #155724; }
+        .agent-status.busy { background: #fff3cd; color: #856404; }
+        .agent-status.away { background: #f8d7da; color: #721c24; }
+        .agent-status.offline { background: #e9ecef; color: #495057; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏢 CRM Call Integration Example</h1>
+        
+        <!-- Connection Status -->
+        <div class="section">
+            <h3>🔌 Connection Status</h3>
+            <div id="connectionStatus" class="status disconnected">
+                🔴 Disconnected from call system
+            </div>
+            <button onclick="connectToCallSystem()" class="button">Connect</button>
+            <button onclick="disconnectFromCallSystem()" class="button">Disconnect</button>
+        </div>
+        
+        <!-- Control Panel -->
+        <div class="section">
+            <h3>🎛️ Control Panel</h3>
+            <button onclick="loadAgents()" class="button">Load Agents</button>
+            <button onclick="loadCallStats()" class="button">Load Call Stats</button>
+            <button onclick="clearLog()" class="button">Clear Log</button>
+        </div>
+        
+        <!-- Agents List -->
+        <div class="section">
+            <h3>👥 Available Agents</h3>
+            <div id="agentsList" class="agents-list">
+                <div>Loading agents...</div>
+            </div>
+        </div>
+        
+        <!-- Call Statistics -->
+        <div class="section">
+            <h3>📊 Call Statistics</h3>
+            <div id="callStats">
+                <p>Active Calls: <span id="activeCalls">-</span></p>
+                <p>Queued Calls: <span id="queuedCalls">-</span></p>
+                <p>Available Agents: <span id="availableAgentsCount">-</span></p>
+            </div>
+        </div>
+        
+        <!-- Activity Log -->
+        <div class="section">
+            <h3>📋 Activity Log</h3>
+            <div id="activityLog" class="log">
+                <div class="log-entry">Waiting for connection...</div>
+            </div>
+        </div>
+        
+        <!-- Instructions -->
+        <div class="section">
+            <h3>📖 Instructions</h3>
+            <ol>
+                <li>Click "Connect" để kết nối tới call system</li>
+                <li>Mở <a href="http://localhost:8000/softphone" target="_blank">Softphone</a> để thực hiện cuộc gọi</li>
+                <li>Mở <a href="http://localhost:8000/agent-dashboard" target="_blank">Agent Dashboard</a> để agent login</li>
+                <li>Khi có cuộc gọi đến, CRM này sẽ hiển thị popup</li>
+                <li>Bạn có thể answer hoặc reject cuộc gọi từ CRM</li>
+            </ol>
+        </div>
+    </div>
+
+    <!-- Include the CRM Call Integration script -->
+    <script src="crm-call-integration.js"></script>
+    
+    <script>
+        // Global variables
+        let crmCall = null;
+        let agents = [];
+        let callStats = {};
+
+        // Initialize CRM Call Integration
+        function connectToCallSystem() {
+            if (crmCall) {
+                crmCall.disconnect();
+            }
+            
+            crmCall = new CRMCallIntegration({
+                serverUrl: 'http://localhost:8000',
+                crmUserId: 'crm_external_frontend',
+                
+                onIncomingCall: handleIncomingCall,
+                onCallAnswered: handleCallAnswered,
+                onCallEnded: handleCallEnded,
+                onAgentStatusUpdate: handleAgentStatusUpdate,
+                onConnectionChange: handleConnectionChange,
+                onError: handleError
+            });
+            
+            log('🔄 Attempting to connect to call system...');
+        }
+
+        function disconnectFromCallSystem() {
+            if (crmCall) {
+                crmCall.disconnect();
+                crmCall = null;
+                log('🔌 Disconnected from call system');
+            }
+        }
+
+        // Event handlers
+        function handleIncomingCall(callData) {
+            log(`📞 INCOMING CALL from ${callData.callerNumber}`);
+            log(`📋 Call ID: ${callData.callId}`);
+            log(`👤 Assigned Agent: ${callData.assignedAgent ? callData.assignedAgent.fullName : 'None'}`);
+            
+            if (callData.customerInfo) {
+                log(`💼 Customer: ${callData.customerInfo.fullName} (${callData.customerInfo.cif})`);
+            } else {
+                log(`🆕 New customer - no CRM data`);
+            }
+            
+            // Show confirmation dialog
+            const answer = confirm(
+                `📞 Incoming Call\n\n` +
+                `From: ${callData.callerNumber}\n` +
+                `Call ID: ${callData.callId}\n` +
+                `Agent: ${callData.assignedAgent ? callData.assignedAgent.fullName : 'Not assigned'}\n` +
+                `Customer: ${callData.customerInfo ? callData.customerInfo.fullName : 'New customer'}\n\n` +
+                `Do you want to answer this call?`
+            );
+            
+            if (answer) {
+                const agentId = callData.assignedAgent ? callData.assignedAgent.id : null;
+                if (agentId) {
+                    crmCall.answerCall(callData.callId, agentId);
+                    log(`✅ Answering call with agent ${agentId}`);
+                } else {
+                    // Find available agent
+                    const availableAgent = agents.find(a => a.status === 'available');
+                    if (availableAgent) {
+                        crmCall.answerCall(callData.callId, availableAgent.id);
+                        log(`✅ Answering call with available agent ${availableAgent.id}`);
+                    } else {
+                        alert('No available agent found');
+                        log(`❌ No available agent to answer call`);
+                    }
+                }
+            } else {
+                crmCall.rejectCall(callData.callId, 'crm_user_reject');
+                log(`❌ Call rejected by CRM user`);
+            }
+        }
+
+        function handleCallAnswered(data) {
+            log(`✅ Call ${data.call.callId} answered successfully`);
+        }
+
+        function handleCallEnded(data) {
+            log(`📴 Call ${data.callId} ended: ${data.endReason}`);
+        }
+
+        function handleAgentStatusUpdate(data) {
+            log(`👤 Agent ${data.agentName} status: ${data.previousStatus} → ${data.status}`);
+            
+            // Update agent in local list
+            const agentIndex = agents.findIndex(a => a.id === data.agentId);
+            if (agentIndex !== -1) {
+                agents[agentIndex].status = data.status;
+                updateAgentsDisplay();
+            }
+        }
+
+        function handleConnectionChange(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            if (connected) {
+                statusEl.className = 'status connected';
+                statusEl.innerHTML = '🟢 Connected to call system';
+                log('✅ Connected to call system');
+                
+                // Auto-load initial data
+                setTimeout(() => {
+                    loadAgents();
+                    loadCallStats();
+                }, 1000);
+            } else {
+                statusEl.className = 'status disconnected';
+                statusEl.innerHTML = '🔴 Disconnected from call system';
+                log('❌ Disconnected from call system');
+            }
+        }
+
+        function handleError(error) {
+            log(`❌ Error: ${error.message || error}`);
+        }
+
+        // Data loading functions
+        async function loadAgents() {
+            if (!crmCall) {
+                log('❌ Not connected to call system');
+                return;
+            }
+            
+            try {
+                agents = await crmCall.loadAvailableAgents();
+                log(`👥 Loaded ${agents.length} agents`);
+                updateAgentsDisplay();
+                
+                // Update stats
+                const availableCount = agents.filter(a => a.status === 'available').length;
+                document.getElementById('availableAgentsCount').textContent = availableCount;
+            } catch (error) {
+                log(`❌ Error loading agents: ${error.message}`);
+            }
+        }
+
+        async function loadCallStats() {
+            if (!crmCall) {
+                log('❌ Not connected to call system');
+                return;
+            }
+            
+            try {
+                callStats = await crmCall.loadCallStats();
+                if (callStats) {
+                    log(`📊 Call stats loaded`);
+                    updateCallStatsDisplay();
+                } else {
+                    log(`❌ No call stats available`);
+                }
+            } catch (error) {
+                log(`❌ Error loading call stats: ${error.message}`);
+            }
+        }
+
+        // UI update functions
+        function updateAgentsDisplay() {
+            const container = document.getElementById('agentsList');
+            
+            if (agents.length === 0) {
+                container.innerHTML = '<div>No agents available</div>';
+                return;
+            }
+            
+            container.innerHTML = agents.map(agent => `
+                <div class="agent-card">
+                    <div><strong>${agent.fullName}</strong></div>
+                    <div><small>ID: ${agent.id} | ${agent.username}</small></div>
+                    <div style="margin-top: 10px;">
+                        <span class="agent-status ${agent.status}">${agent.status}</span>
+                    </div>
+                    <div style="margin-top: 5px; font-size: 12px; color: #666;">
+                        Calls: ${agent.totalCalls} | Talk time: ${agent.totalTalkTime}s
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateCallStatsDisplay() {
+            if (callStats.activeCalls !== undefined) {
+                document.getElementById('activeCalls').textContent = callStats.activeCalls;
+            }
+            if (callStats.queuedCalls !== undefined) {
+                document.getElementById('queuedCalls').textContent = callStats.queuedCalls;
+            }
+            if (callStats.availableAgents !== undefined) {
+                document.getElementById('availableAgentsCount').textContent = callStats.availableAgents;
+            }
+        }
+
+        function log(message) {
+            const logContainer = document.getElementById('activityLog');
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span style="color: #666;">[${time}]</span> ${message}`;
+            
+            logContainer.insertBefore(entry, logContainer.firstChild);
+            
+            // Keep only last 50 entries
+            const entries = logContainer.querySelectorAll('.log-entry');
+            if (entries.length > 50) {
+                entries[entries.length - 1].remove();
+            }
+            
+            console.log(`[${time}] ${message}`);
+        }
+
+        function clearLog() {
+            document.getElementById('activityLog').innerHTML = 
+                '<div class="log-entry">Log cleared</div>';
+        }
+
+        // Auto-connect on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            log('🚀 CRM Integration Example loaded');
+            log('📖 Click "Connect" to start receiving call events');
+        });
+
+        // Auto-refresh data every 30 seconds
+        setInterval(() => {
+            if (crmCall && crmCall.isCallSystemConnected()) {
+                loadAgents();
+                loadCallStats();
+            }
+        }, 30000);
+    </script>
+</body>
+</html>

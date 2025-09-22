@@ -1,0 +1,364 @@
+========================================
+VOICEBOT BACKEND - FRONTEND INTEGRATION INFO
+========================================
+
+🚀 BACKEND SERVER INFORMATION
+=============================
+
+Server URL: http://localhost:8000
+WebSocket URL: http://localhost:8000
+Protocol: Socket.IO v4.x
+CORS: Enabled for all origins (*)
+Database: MySQL (Docker container)
+
+🔐 AUTHENTICATION
+=================
+
+All API endpoints (except demo endpoints) require JWT authentication.
+
+Login to get token:
+POST /api/auth/login
+{
+  "username": "admin",
+  "password": "admin123456"
+}
+
+Response:
+{
+  "success": true,
+  "data": {
+    "tokens": {
+      "accessToken": "jwt_token_here",
+      "refreshToken": "refresh_token_here"
+    },
+    "user": {
+      "id": 1,
+      "username": "admin",
+      "role": "admin"
+    }
+  }
+}
+
+Use token in headers:
+Authorization: Bearer <accessToken>
+
+📡 REST API ENDPOINTS
+=====================
+
+## Demo Endpoints (No Auth Required)
+
+GET /api/call/demo/status
+- Returns: Call center status with demo data
+- Response: { success, data: { activeCalls, queueStatus, agentsStatus, stats } }
+
+POST /api/call/demo/initiate
+- Body: { "callerNumber": "0912345678" }
+- Returns: Call initiation result
+- Response: { success, data: { callId, status, assignedAgent, queuePosition, estimatedWaitTime } }
+
+GET /api/call/demo/agents
+- Returns: List of demo agents
+- Response: { success, data: { agents, available, busy, total } }
+
+GET /api/call/demo/test-websocket
+- Returns: WebSocket integration information
+
+## User Management
+
+POST /api/auth/register
+- Body: { username, password, fullName, email, role }
+- Returns: Created user info
+
+GET /api/auth/users
+- Returns: List of all users
+
+POST /api/auth/me
+- Headers: Authorization: Bearer <token>
+- Returns: Current user info
+
+## Customer Management
+
+GET /api/customers/search?query=<search_term>&limit=<number>
+- Returns: Matching customers
+
+POST /api/customers/create
+- Body: { cifNumber, hoTen, cmnd, ngaySinh, gioiTinh, diaChi, soDienThoai, email, ... }
+- Returns: Created customer
+
+GET /api/customers/<cif_number>
+- Returns: Customer by CIF number
+
+## Other Endpoints
+
+GET /health
+- Returns: { status: "healthy", message: "CRM API is running" }
+
+🔌 WEBSOCKET EVENTS
+==================
+
+## Connection
+
+Frontend connects to: http://localhost:8000
+Library: socket.io-client v4.x
+
+```javascript
+import io from 'socket.io-client';
+const socket = io('http://localhost:8000');
+```
+
+## Events Frontend Can EMIT (Send to Backend)
+
+### For Customers (Softphone)
+- `make_call`: { callerNumber, calledNumber }
+- `end_call`: { callId, endedBy }
+
+### For Agents (Dashboard)
+- `agent_login`: { userId, username, fullName }
+- `change_agent_status`: { userId, status }
+- `answer_call`: { callId, agentId }
+- `join_call_center`: (no data)
+- `get_dashboard_data`: (no data)
+
+## Events Frontend Will RECEIVE (From Backend)
+
+### Connection Events
+- `connect`: Connection established
+- `disconnect`: Connection lost
+- `error`: Error occurred
+
+### Customer Events (Softphone)
+- `call_initiated`: { callId, status, assignedAgent, message }
+- `call_queued`: { callId, queuePosition, estimatedWaitTime, message }
+- `call_connected`: { callId, status, agent, message }
+- `call_ended`: { callId, call, endedBy, message }
+
+### Agent Events (Dashboard)
+- `agent_login_success`: { agent, message }
+- `incoming_call`: { callId, callerNumber, customer, timestamp }
+- `call_answered`: { call, message }
+- `status_change_success`: { agent, message }
+
+### Real-time Updates
+- `agent_status_update`: { agent, status }
+- `call_update`: { call data }
+- `dashboard_data`: { activeCalls, queueStatus, agentsStatus, timestamp }
+
+📊 DATA STRUCTURES
+==================
+
+## Call Object
+{
+  "callId": "CALL_12345678",
+  "callerNumber": "0912345678",
+  "calledNumber": "1900",
+  "status": "ringing|connected|ended",
+  "customerId": 123,
+  "agentId": 1,
+  "customerInfo": {
+    "cifNumber": "CIF001234567",
+    "hoTen": "Customer Name",
+    "soDienThoai": "0912345678"
+  },
+  "agentInfo": {
+    "id": 1,
+    "username": "agent01",
+    "fullName": "Agent Name"
+  },
+  "startTime": "2025-09-18T14:30:00Z",
+  "answerTime": "2025-09-18T14:30:15Z",
+  "talkDuration": 120
+}
+
+## Agent Object
+{
+  "id": 1,
+  "userId": 1,
+  "username": "agent01",
+  "fullName": "Agent Name",
+  "status": "available|busy|on_call|away|offline",
+  "currentCallId": "CALL_12345678",
+  "totalCallsHandled": 25,
+  "totalTalkTime": 3600,
+  "avgHandleTime": 144,
+  "lastStatusChange": "2025-09-18T14:30:00Z"
+}
+
+## Customer Object
+{
+  "id": 123,
+  "cifNumber": "CIF001234567",
+  "hoTen": "Customer Name",
+  "soDienThoai": "0912345678",
+  "email": "customer@email.com",
+  "diaChi": "Customer Address",
+  "segmentKH": "Premium",
+  "trangThaiKH": "Hoạt động"
+}
+
+🎯 INTEGRATION FLOW
+==================
+
+## Softphone Integration (Customer Side)
+
+1. **Connect WebSocket**
+   ```javascript
+   const socket = io('http://localhost:8000');
+   ```
+
+2. **Listen for Events**
+   ```javascript
+   socket.on('call_initiated', (data) => {
+     // Update UI: show "Calling..." or "Ringing..."
+   });
+   
+   socket.on('call_queued', (data) => {
+     // Show queue position and wait time
+   });
+   
+   socket.on('call_connected', (data) => {
+     // Show "Connected" and start call timer
+   });
+   
+   socket.on('call_ended', (data) => {
+     // Reset UI to idle state
+   });
+   ```
+
+3. **Make Call**
+   ```javascript
+   socket.emit('make_call', {
+     callerNumber: phoneNumber,
+     calledNumber: '1900'
+   });
+   ```
+
+4. **End Call**
+   ```javascript
+   socket.emit('end_call', {
+     callId: currentCallId,
+     endedBy: 'caller'
+   });
+   ```
+
+## Agent Dashboard Integration
+
+1. **Agent Login**
+   ```javascript
+   socket.emit('agent_login', {
+     userId: agentUserId,
+     username: agentUsername,
+     fullName: agentFullName
+   });
+   ```
+
+2. **Join Call Center Updates**
+   ```javascript
+   socket.emit('join_call_center');
+   ```
+
+3. **Listen for Incoming Calls**
+   ```javascript
+   socket.on('incoming_call', (data) => {
+     // Show incoming call modal with caller info
+     // Play ringtone
+   });
+   ```
+
+4. **Answer Call**
+   ```javascript
+   socket.emit('answer_call', {
+     callId: callId,
+     agentId: agentId
+   });
+   ```
+
+5. **Change Status**
+   ```javascript
+   socket.emit('change_agent_status', {
+     userId: agentUserId,
+     status: 'available' // or 'busy', 'away', 'offline'
+   });
+   ```
+
+6. **Get Dashboard Data**
+   ```javascript
+   socket.emit('get_dashboard_data');
+   
+   socket.on('dashboard_data', (data) => {
+     // Update dashboard with active calls, queue, agent status
+   });
+   ```
+
+🔧 ERROR HANDLING
+=================
+
+All WebSocket events may trigger 'error' event:
+```javascript
+socket.on('error', (data) => {
+  console.error('Error:', data.message);
+  // Show error to user
+});
+```
+
+Common error types:
+- Connection errors
+- Authentication errors  
+- Call state errors
+- Agent status errors
+
+💡 BEST PRACTICES
+================
+
+1. **Always check socket.connected before emitting**
+2. **Handle reconnection gracefully**
+3. **Store call state in frontend**
+4. **Implement auto-refresh for dashboard data**
+5. **Show loading states during operations**
+6. **Validate user input before sending**
+
+🧪 TESTING
+==========
+
+## API Testing
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Demo call status
+curl http://localhost:8000/api/call/demo/status
+
+# Initiate demo call
+curl -X POST http://localhost:8000/api/call/demo/initiate \
+  -H "Content-Type: application/json" \
+  -d '{"callerNumber": "0912345678"}'
+```
+
+## WebSocket Testing
+Use browser console:
+```javascript
+const socket = io('http://localhost:8000');
+socket.on('connect', () => console.log('Connected'));
+socket.emit('make_call', { callerNumber: '0912345678' });
+```
+
+Or use the provided test files:
+- simple_softphone_test.html
+- test_websocket.html
+
+🚀 DEPLOYMENT NOTES
+==================
+
+Development:
+- Backend: http://localhost:8000
+- Database: MySQL Docker container
+- CORS: Enabled for all origins
+
+Production:
+- Configure proper CORS origins
+- Use HTTPS for WebSocket security
+- Set environment variables
+- Configure reverse proxy if needed
+
+========================================
+END OF INTEGRATION INFO
+========================================

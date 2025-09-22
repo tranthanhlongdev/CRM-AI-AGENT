@@ -1,0 +1,500 @@
+========================================
+VOICEBOT - WEBRTC VOICE CALL INTEGRATION
+========================================
+
+🎙️ TỔNG QUAN
+============
+
+Backend đã hỗ trợ WebRTC signaling để Customer và Agent có thể nói chuyện trực tiếp qua audio call thật sự.
+
+Flow:
+1. Customer gọi → Backend tìm Agent → Call connected
+2. Cả 2 bên join WebRTC room
+3. WebRTC signaling exchange (offer/answer/ICE)
+4. Audio stream established → Nói chuyện trực tiếp!
+
+🔌 BACKEND ĐÃ CUNG CẤP
+======================
+
+## WebRTC Signaling Events (SocketIO)
+
+### Join/Leave Call Room
+- `join_call_room` - Join vào room của cuộc gọi
+- `leave_call_room` - Leave khỏi room
+- `peer_joined` - Có peer khác join vào
+- `peer_left` - Peer khác đã leave
+
+### WebRTC Signaling
+- `webrtc_offer` - Gửi offer (customer → agent)
+- `webrtc_answer` - Gửi answer (agent → customer)  
+- `webrtc_ice_candidate` - Exchange ICE candidates
+- `webrtc_media_state` - Trạng thái media (mute/unmute)
+
+### Response Events
+- `webrtc_offer_received` - Nhận offer từ peer
+- `webrtc_answer_received` - Nhận answer từ peer
+- `webrtc_ice_candidate_received` - Nhận ICE candidate
+- `peer_media_state` - Trạng thái media của peer
+
+## REST APIs
+
+### WebRTC Configuration
+GET /api/webrtc/config
+Response:
+{
+  "iceServers": [
+    {"urls": ["stun:stun.l.google.com:19302"]},
+    {"urls": ["stun:stun1.l.google.com:19302"]}
+  ],
+  "mediaConstraints": {
+    "audio": {
+      "echoCancellation": true,
+      "noiseSuppression": true,
+      "autoGainControl": true
+    },
+    "video": false
+  }
+}
+
+### Call WebRTC Info
+GET /api/webrtc/call/{callId}/info
+Response:
+{
+  "callId": "CALL_123",
+  "roomName": "call_CALL_123",
+  "signalingUrl": "http://localhost:8000",
+  "events": {
+    "join": "join_call_room",
+    "offer": "webrtc_offer",
+    "answer": "webrtc_answer",
+    "iceCandidate": "webrtc_ice_candidate"
+  }
+}
+
+🎯 FRONTEND INTEGRATION
+=======================
+
+## 1. Setup WebRTC khi Call Connected
+
+```javascript
+socket.on('call_connected', async (data) => {
+  const { callId, webrtcRoom } = data;
+  
+  // Join WebRTC room
+  socket.emit('join_call_room', {
+    callId: callId,
+    peerType: 'customer' // hoặc 'agent'
+  });
+  
+  // Khởi tạo WebRTC
+  await initWebRTC(callId);
+});
+```
+
+## 2. WebRTC Setup
+
+```javascript
+class VoiceCallManager {
+  constructor(socket, callId, peerType) {
+    this.socket = socket;
+    this.callId = callId;
+    this.peerType = peerType; // 'customer' hoặc 'agent'
+    this.peerConnection = null;
+    this.localStream = null;
+    this.remoteStream = null;
+    
+    this.setupWebRTC();
+    this.setupSocketEvents();
+  }
+
+  async setupWebRTC() {
+    // Get WebRTC config từ backend
+    const configResponse = await fetch('/api/webrtc/config');
+    const config = await configResponse.json();
+    
+    // Tạo peer connection
+    this.peerConnection = new RTCPeerConnection({
+      iceServers: config.data.iceServers
+    });
+
+    // Setup events
+    this.peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        this.socket.emit('webrtc_ice_candidate', {
+          callId: this.callId,
+          candidate: event.candidate,
+          fromPeer: this.peerType
+        });
+      }
+    };
+
+    this.peerConnection.ontrack = (event) => {
+      console.log('Received remote stream');
+      this.remoteStream = event.streams[0];
+      this.playRemoteAudio();
+    };
+  }
+
+  async startCall() {
+    try {
+      // Get user media (microphone)
+      this.localStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
+        video: false
+      });
+
+      // Add local stream to peer connection
+      this.localStream.getTracks().forEach(track => {
+        this.peerConnection.addTrack(track, this.localStream);
+      });
+
+      // Customer tạo offer
+      if (this.peerType === 'customer') {
+        await this.createOffer();
+      }
+
+    } catch (error) {
+      console.error('Error starting call:', error);
+    }
+  }
+
+  async createOffer() {
+    try {
+      const offer = await this.peerConnection.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false
+      });
+
+      await this.peerConnection.setLocalDescription(offer);
+
+      // Gửi offer qua signaling server
+      this.socket.emit('webrtc_offer', {
+        callId: this.callId,
+        offer: offer,
+        fromPeer: this.peerType
+      });
+
+    } catch (error) {
+      console.error('Error creating offer:', error);
+    }
+  }
+
+  async handleOffer(offer) {
+    try {
+      await this.peerConnection.setRemoteDescription(offer);
+
+      // Agent tạo answer
+      if (this.peerType === 'agent') {
+        const answer = await this.peerConnection.createAnswer();
+        await this.peerConnection.setLocalDescription(answer);
+
+        // Gửi answer
+        this.socket.emit('webrtc_answer', {
+          callId: this.callId,
+          answer: answer,
+          fromPeer: this.peerType
+        });
+      }
+
+    } catch (error) {
+      console.error('Error handling offer:', error);
+    }
+  }
+
+  async handleAnswer(answer) {
+    try {
+      await this.peerConnection.setRemoteDescription(answer);
+    } catch (error) {
+      console.error('Error handling answer:', error);
+    }
+  }
+
+  async handleIceCandidate(candidate) {
+    try {
+      await this.peerConnection.addIceCandidate(candidate);
+    } catch (error) {
+      console.error('Error handling ICE candidate:', error);
+    }
+  }
+
+  setupSocketEvents() {
+    // Nhận offer từ peer khác
+    this.socket.on('webrtc_offer_received', (data) => {
+      if (data.callId === this.callId) {
+        this.handleOffer(data.offer);
+      }
+    });
+
+    // Nhận answer từ peer khác
+    this.socket.on('webrtc_answer_received', (data) => {
+      if (data.callId === this.callId) {
+        this.handleAnswer(data.answer);
+      }
+    });
+
+    // Nhận ICE candidate
+    this.socket.on('webrtc_ice_candidate_received', (data) => {
+      if (data.callId === this.callId) {
+        this.handleIceCandidate(data.candidate);
+      }
+    });
+
+    // Peer joined
+    this.socket.on('peer_joined', (data) => {
+      if (data.callId === this.callId) {
+        console.log('Peer joined:', data.peerType);
+        // Nếu là customer và agent vừa join, start call
+        if (this.peerType === 'customer' && data.peerType === 'agent') {
+          this.startCall();
+        }
+      }
+    });
+  }
+
+  playRemoteAudio() {
+    const audioElement = document.getElementById('remoteAudio');
+    if (audioElement && this.remoteStream) {
+      audioElement.srcObject = this.remoteStream;
+      audioElement.play();
+    }
+  }
+
+  mute() {
+    if (this.localStream) {
+      this.localStream.getAudioTracks().forEach(track => {
+        track.enabled = false;
+      });
+      
+      // Thông báo trạng thái
+      this.socket.emit('webrtc_media_state', {
+        callId: this.callId,
+        peerType: this.peerType,
+        audioEnabled: false
+      });
+    }
+  }
+
+  unmute() {
+    if (this.localStream) {
+      this.localStream.getAudioTracks().forEach(track => {
+        track.enabled = true;
+      });
+      
+      this.socket.emit('webrtc_media_state', {
+        callId: this.callId,
+        peerType: this.peerType,
+        audioEnabled: true
+      });
+    }
+  }
+
+  endCall() {
+    // Stop local stream
+    if (this.localStream) {
+      this.localStream.getTracks().forEach(track => track.stop());
+    }
+
+    // Close peer connection
+    if (this.peerConnection) {
+      this.peerConnection.close();
+    }
+
+    // Leave WebRTC room
+    this.socket.emit('leave_call_room', {
+      callId: this.callId,
+      peerType: this.peerType
+    });
+  }
+}
+```
+
+## 3. Integration với Softphone
+
+```javascript
+class VoiceBotSoftphone {
+  constructor() {
+    this.socket = io('http://localhost:8000');
+    this.voiceCallManager = null;
+    this.setupEvents();
+  }
+
+  setupEvents() {
+    this.socket.on('call_connected', async (data) => {
+      console.log('Call connected, starting voice call...');
+      
+      // Khởi tạo voice call manager
+      this.voiceCallManager = new VoiceCallManager(
+        this.socket, 
+        data.callId, 
+        'customer'
+      );
+
+      // Join WebRTC room
+      this.socket.emit('join_call_room', {
+        callId: data.callId,
+        peerType: 'customer'
+      });
+
+      // Start call khi agent join
+      await this.voiceCallManager.startCall();
+    });
+
+    this.socket.on('call_ended', () => {
+      if (this.voiceCallManager) {
+        this.voiceCallManager.endCall();
+        this.voiceCallManager = null;
+      }
+    });
+  }
+
+  makeCall(phoneNumber) {
+    this.socket.emit('make_call', {
+      callerNumber: phoneNumber,
+      calledNumber: '1900'
+    });
+  }
+
+  endCall() {
+    if (this.voiceCallManager) {
+      this.voiceCallManager.endCall();
+    }
+    // ... existing end call logic
+  }
+
+  mute() {
+    if (this.voiceCallManager) {
+      this.voiceCallManager.mute();
+    }
+  }
+
+  unmute() {
+    if (this.voiceCallManager) {
+      this.voiceCallManager.unmute();
+    }
+  }
+}
+```
+
+## 4. Integration với Agent Dashboard
+
+```javascript
+class AgentDashboard {
+  constructor() {
+    this.socket = io('http://localhost:8000');
+    this.voiceCallManager = null;
+    this.setupEvents();
+  }
+
+  setupEvents() {
+    this.socket.on('incoming_call', (data) => {
+      this.showIncomingCallModal(data);
+    });
+
+    this.socket.on('call_answered', async (data) => {
+      console.log('Call answered, preparing voice call...');
+      
+      // Khởi tạo voice call manager cho agent
+      this.voiceCallManager = new VoiceCallManager(
+        this.socket, 
+        data.call.callId, 
+        'agent'
+      );
+
+      // Join WebRTC room
+      this.socket.emit('join_call_room', {
+        callId: data.call.callId,
+        peerType: 'agent'
+      });
+
+      // Agent chờ offer từ customer
+      await this.voiceCallManager.startCall();
+    });
+  }
+
+  answerCall(callId) {
+    this.socket.emit('answer_call', {
+      callId: callId,
+      agentId: this.agentId
+    });
+  }
+}
+```
+
+## 5. HTML Audio Elements
+
+```html
+<!-- Thêm vào HTML -->
+<audio id="remoteAudio" autoplay></audio>
+
+<!-- Call controls -->
+<div id="callControls" style="display: none;">
+  <button onclick="muteCall()">🔇 Mute</button>
+  <button onclick="unmuteCall()">🔊 Unmute</button>
+  <button onclick="endCall()">📴 End Call</button>
+</div>
+```
+
+🔧 TROUBLESHOOTING
+==================
+
+## Common Issues:
+
+1. **Microphone Permission**
+   ```javascript
+   // Check permissions
+   navigator.permissions.query({name: 'microphone'}).then((result) => {
+     console.log('Microphone permission:', result.state);
+   });
+   ```
+
+2. **No Audio**
+   - Check browser microphone permissions
+   - Verify audio element autoplay attribute
+   - Check WebRTC connection state
+
+3. **Connection Failed**
+   - Verify STUN servers connectivity
+   - Check firewall/NAT settings
+   - Monitor ICE connection state
+
+## Debug Commands:
+
+```javascript
+// Check connection state
+console.log('Connection state:', peerConnection.connectionState);
+console.log('ICE connection state:', peerConnection.iceConnectionState);
+
+// Check audio tracks
+console.log('Local tracks:', localStream.getTracks());
+console.log('Remote tracks:', remoteStream.getTracks());
+```
+
+📋 BROWSER SUPPORT
+==================
+
+- Chrome/Edge: Full support ✅
+- Firefox: Full support ✅  
+- Safari: Partial support ⚠️
+- Mobile browsers: Limited support ⚠️
+
+Recommend: Chrome/Firefox for best experience
+
+🚀 PRODUCTION NOTES
+===================
+
+1. **HTTPS Required**: WebRTC needs HTTPS in production
+2. **TURN Servers**: Add TURN servers for NAT traversal
+3. **Audio Quality**: Configure audio codecs (Opus recommended)
+4. **Error Handling**: Implement comprehensive error handling
+5. **Fallback**: Provide fallback for unsupported browsers
+
+========================================
+VOICE CALL READY! 🎙️📞
+========================================
+
+Backend đã sẵn sàng hỗ trợ voice call thật sự!
+Frontend cần implement WebRTC client theo hướng dẫn trên.

@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoiceBot Agent Dashboard</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .agent-login {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        .agent-status {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .incoming-calls {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        .call-controls {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .btn {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            margin: 5px;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .btn-login {
+            background: rgba(76, 175, 80, 0.8);
+            color: white;
+        }
+        .btn-logout {
+            background: rgba(244, 67, 54, 0.8);
+            color: white;
+        }
+        .btn-answer {
+            background: rgba(76, 175, 80, 0.8);
+            color: white;
+        }
+        .btn-reject {
+            background: rgba(244, 67, 54, 0.8);
+            color: white;
+        }
+        .btn-status {
+            background: rgba(103, 58, 183, 0.8);
+            color: white;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        input, select {
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            margin: 5px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            backdrop-filter: blur(5px);
+        }
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        .call-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            border-left: 5px solid #FF9800;
+        }
+        .call-item.incoming {
+            border-left-color: #FF5722;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        .status-available { background: rgba(76, 175, 80, 0.8); }
+        .status-busy { background: rgba(255, 152, 0, 0.8); }
+        .status-offline { background: rgba(158, 158, 158, 0.8); }
+        .log-section {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 15px;
+            margin: 20px 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+        .log-time {
+            color: rgba(255, 255, 255, 0.7);
+            margin-right: 10px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #FFD700;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>👨‍💼 Agent Dashboard</h1>
+        
+        <!-- Agent Login -->
+        <div id="agentLogin" class="agent-login">
+            <h3>🔐 Agent Login</h3>
+            <div>
+                <select id="agentSelect">
+                    <option value="">Chọn Agent...</option>
+                    <option value="1">Admin User (ID: 1)</option>
+                    <option value="2">Test User CRM (ID: 2)</option>
+                </select>
+                <button id="loginBtn" class="btn btn-login" onclick="agentLogin()">🚪 Login</button>
+            </div>
+        </div>
+        
+        <!-- Agent Status -->
+        <div id="agentStatus" class="agent-status">
+            <h3>👤 Agent Status</h3>
+            <div id="agentInfo">
+                <p><strong>Name:</strong> <span id="agentName">-</span></p>
+                <p><strong>Status:</strong> <span id="currentStatus" class="status-badge">-</span></p>
+                <p><strong>Current Call:</strong> <span id="currentCall">-</span></p>
+            </div>
+            <div>
+                <button class="btn btn-status" onclick="changeStatus('available')">🟢 Available</button>
+                <button class="btn btn-status" onclick="changeStatus('busy')">🟡 Busy</button>
+                <button class="btn btn-status" onclick="changeStatus('away')">🟠 Away</button>
+                <button class="btn btn-logout" onclick="agentLogout()">🚪 Logout</button>
+            </div>
+        </div>
+        
+        <!-- Incoming Calls -->
+        <div class="incoming-calls">
+            <h3>📞 Incoming Calls</h3>
+            <div id="incomingCallsList">
+                <p>Không có cuộc gọi nào...</p>
+            </div>
+        </div>
+        
+        <!-- Call Controls -->
+        <div id="callControls" class="call-controls">
+            <h3>🎙️ Call In Progress</h3>
+            <div id="currentCallInfo">
+                <p><strong>Caller:</strong> <span id="callerNumber">-</span></p>
+                <p><strong>Duration:</strong> <span id="callDuration">00:00</span></p>
+            </div>
+            <div>
+                <button class="btn" onclick="toggleMute()" style="background: rgba(255, 193, 7, 0.8);">🔇 Mute</button>
+                <button class="btn" onclick="holdCall()" style="background: rgba(156, 39, 176, 0.8);">⏸️ Hold</button>
+                <button class="btn btn-reject" onclick="endCurrentCall()">📴 End Call</button>
+            </div>
+        </div>
+        
+        <!-- Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="totalCalls">0</div>
+                <div>Total Calls</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="avgHandleTime">0s</div>
+                <div>Avg Handle Time</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="totalTalkTime">0s</div>
+                <div>Total Talk Time</div>
+            </div>
+        </div>
+        
+        <!-- Activity Log -->
+        <div class="log-section">
+            <h3>📋 Activity Log</h3>
+            <div id="activityLog"></div>
+        </div>
+    </div>
+
+    <!-- Audio for remote stream -->
+    <audio id="remoteAudio" autoplay></audio>
+
+    <script>
+        // Global variables
+        let socket = null;
+        let currentAgent = null;
+        let currentCallId = null;
+        let callStartTime = null;
+        let callTimer = null;
+        let peerConnection = null;
+        let localStream = null;
+        let remoteStream = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            initSocket();
+            loadAgentOptions();
+        });
+
+        // Socket.IO Connection
+        function initSocket() {
+            socket = io('http://localhost:8000');
+            
+            socket.on('connect', function() {
+                log('✅ Kết nối WebSocket thành công');
+            });
+
+            socket.on('disconnect', function() {
+                log('❌ Mất kết nối WebSocket');
+            });
+
+            // Call events
+            socket.on('incoming_call', function(data) {
+                log('📞 Có cuộc gọi đến: ' + data.callerNumber);
+                showIncomingCall(data);
+            });
+
+            socket.on('call_answered', function(data) {
+                log('✅ Đã nhận cuộc gọi: ' + data.call.callId);
+                startCall(data.call);
+            });
+
+            socket.on('call_ended', function(data) {
+                log('📴 Cuộc gọi đã kết thúc: ' + data.message);
+                endCall();
+            });
+
+            socket.on('agent_status_updated', function(data) {
+                log('📊 Trạng thái agent đã cập nhật: ' + data.status);
+                updateAgentStatus(data.status);
+            });
+
+            // WebRTC events
+            socket.on('webrtc_offer_received', handleWebRTCOffer);
+            socket.on('webrtc_answer_received', handleWebRTCAnswer);
+            socket.on('webrtc_ice_candidate_received', handleWebRTCIceCandidate);
+            socket.on('peer_joined', function(data) {
+                log('👥 Peer joined: ' + data.peerType);
+                if (data.peerType === 'customer') {
+                    // Customer joined, wait for offer
+                    log('⏳ Waiting for customer offer...');
+                }
+            });
+        }
+
+        // Agent management
+        async function loadAgentOptions() {
+            try {
+                const response = await fetch('/api/agents/status');
+                const result = await response.json();
+                
+                const select = document.getElementById('agentSelect');
+                select.innerHTML = '<option value="">Chọn Agent...</option>';
+                
+                if (result.success && result.data.agents) {
+                    result.data.agents.forEach(agent => {
+                        const option = document.createElement('option');
+                        option.value = agent.id;
+                        option.textContent = `${agent.fullName} (ID: ${agent.id})`;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                log('❌ Lỗi tải danh sách agents: ' + error.message);
+            }
+        }
+
+        async function agentLogin() {
+            const agentId = document.getElementById('agentSelect').value;
+            if (!agentId) {
+                alert('Vui lòng chọn agent');
+                return;
+            }
+
+            try {
+                // Get agent info
+                const response = await fetch(`/api/agents/${agentId}/status`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentAgent = result.data;
+                    showAgentDashboard();
+                    
+                    // Join call center as agent
+                    socket.emit('agent_login', {
+                        agentId: parseInt(agentId),
+                        username: currentAgent.username
+                    });
+                    
+                    log('✅ Agent login thành công: ' + currentAgent.fullName);
+                    
+                    // Set status to available
+                    await changeStatus('available');
+                } else {
+                    alert('Lỗi login: ' + result.message);
+                }
+            } catch (error) {
+                alert('Lỗi login: ' + error.message);
+            }
+        }
+
+        function agentLogout() {
+            if (currentAgent) {
+                socket.emit('agent_logout', {
+                    agentId: currentAgent.id
+                });
+                
+                log('🚪 Agent logout: ' + currentAgent.fullName);
+                currentAgent = null;
+                showLoginForm();
+            }
+        }
+
+        async function changeStatus(status) {
+            if (!currentAgent) return;
+            
+            try {
+                const response = await fetch(`/api/agents/${currentAgent.id}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: status })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    updateAgentStatus(status);
+                    log('📊 Cập nhật trạng thái: ' + status);
+                    
+                    // Emit status change via socket
+                    socket.emit('change_agent_status', {
+                        agentId: currentAgent.id,
+                        status: status
+                    });
+                } else {
+                    log('❌ Lỗi cập nhật trạng thái: ' + result.message);
+                }
+            } catch (error) {
+                log('❌ Lỗi cập nhật trạng thái: ' + error.message);
+            }
+        }
+
+        // Call handling
+        function showIncomingCall(callData) {
+            const list = document.getElementById('incomingCallsList');
+            
+            const callDiv = document.createElement('div');
+            callDiv.className = 'call-item incoming';
+            callDiv.id = 'call_' + callData.callId;
+            callDiv.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong>📞 ${callData.callerNumber}</strong>
+                        <br><small>Call ID: ${callData.callId}</small>
+                        <br><small>Waiting: ${new Date(callData.startTime).toLocaleTimeString()}</small>
+                    </div>
+                    <div>
+                        <button class="btn btn-answer" onclick="answerCall('${callData.callId}')">📞 Answer</button>
+                        <button class="btn btn-reject" onclick="rejectCall('${callData.callId}')">❌ Reject</button>
+                    </div>
+                </div>
+            `;
+            
+            list.appendChild(callDiv);
+        }
+
+        async function answerCall(callId) {
+            if (!currentAgent) return;
+            
+            try {
+                socket.emit('answer_call', {
+                    callId: callId,
+                    agentId: currentAgent.id
+                });
+                
+                log('📞 Đang nhận cuộc gọi: ' + callId);
+                
+                // Remove from incoming calls
+                const callElement = document.getElementById('call_' + callId);
+                if (callElement) {
+                    callElement.remove();
+                }
+                
+            } catch (error) {
+                log('❌ Lỗi nhận cuộc gọi: ' + error.message);
+            }
+        }
+
+        async function rejectCall(callId) {
+            socket.emit('end_call', {
+                callId: callId,
+                endReason: 'agent_reject'
+            });
+            
+            // Remove from incoming calls
+            const callElement = document.getElementById('call_' + callId);
+            if (callElement) {
+                callElement.remove();
+            }
+            
+            log('❌ Đã từ chối cuộc gọi: ' + callId);
+        }
+
+        function startCall(callData) {
+            currentCallId = callData.callId;
+            callStartTime = new Date();
+            
+            // Update UI
+            document.getElementById('callerNumber').textContent = callData.callerNumber;
+            document.getElementById('currentCall').textContent = callData.callId;
+            document.getElementById('callControls').style.display = 'block';
+            
+            // Start timer
+            callTimer = setInterval(updateCallDuration, 1000);
+            
+            // Join WebRTC room
+            socket.emit('join_call_room', {
+                callId: callData.callId,
+                peerType: 'agent'
+            });
+            
+            // Initialize WebRTC
+            initWebRTC(callData.callId);
+        }
+
+        function endCall() {
+            if (callTimer) {
+                clearInterval(callTimer);
+                callTimer = null;
+            }
+            
+            document.getElementById('callControls').style.display = 'none';
+            document.getElementById('currentCall').textContent = '-';
+            
+            currentCallId = null;
+            callStartTime = null;
+            
+            // Clean up WebRTC
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+        }
+
+        function endCurrentCall() {
+            if (currentCallId) {
+                socket.emit('end_call', {
+                    callId: currentCallId,
+                    endReason: 'agent_hangup'
+                });
+            }
+        }
+
+        function updateCallDuration() {
+            if (callStartTime) {
+                const duration = Math.floor((new Date() - callStartTime) / 1000);
+                const minutes = Math.floor(duration / 60);
+                const seconds = duration % 60;
+                document.getElementById('callDuration').textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+
+        // WebRTC functions
+        async function initWebRTC(callId) {
+            try {
+                // Get WebRTC config
+                const configResponse = await fetch('/api/webrtc/config');
+                const config = await configResponse.json();
+                
+                // Create peer connection
+                peerConnection = new RTCPeerConnection({
+                    iceServers: config.data.iceServers
+                });
+
+                // Setup events
+                peerConnection.onicecandidate = function(event) {
+                    if (event.candidate) {
+                        socket.emit('webrtc_ice_candidate', {
+                            callId: callId,
+                            candidate: event.candidate,
+                            fromPeer: 'agent'
+                        });
+                    }
+                };
+
+                peerConnection.ontrack = function(event) {
+                    log('🎧 Nhận được customer audio stream');
+                    remoteStream = event.streams[0];
+                    const audioElement = document.getElementById('remoteAudio');
+                    audioElement.srcObject = remoteStream;
+                };
+
+                // Get user media
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true
+                        },
+                        video: false
+                    });
+
+                    // Add tracks to peer connection
+                    localStream.getTracks().forEach(track => {
+                        peerConnection.addTrack(track, localStream);
+                    });
+
+                    log('🎤 Agent audio stream ready');
+
+                } catch (error) {
+                    log('❌ Lỗi truy cập microphone: ' + error.message);
+                }
+
+            } catch (error) {
+                log('❌ Lỗi khởi tạo WebRTC: ' + error.message);
+            }
+        }
+
+        async function handleWebRTCOffer(data) {
+            if (data.callId !== currentCallId) return;
+            
+            try {
+                await peerConnection.setRemoteDescription(data.offer);
+                
+                // Create answer
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                // Send answer
+                socket.emit('webrtc_answer', {
+                    callId: currentCallId,
+                    answer: answer,
+                    fromPeer: 'agent'
+                });
+
+                log('📡 WebRTC answer sent');
+
+            } catch (error) {
+                log('❌ Lỗi xử lý WebRTC offer: ' + error.message);
+            }
+        }
+
+        async function handleWebRTCAnswer(data) {
+            // Agent typically doesn't receive answers
+            if (data.callId !== currentCallId) return;
+            
+            try {
+                await peerConnection.setRemoteDescription(data.answer);
+                log('✅ WebRTC connection established!');
+            } catch (error) {
+                log('❌ Lỗi xử lý WebRTC answer: ' + error.message);
+            }
+        }
+
+        async function handleWebRTCIceCandidate(data) {
+            if (data.callId !== currentCallId) return;
+            
+            try {
+                await peerConnection.addIceCandidate(data.candidate);
+            } catch (error) {
+                log('❌ Lỗi xử lý ICE candidate: ' + error.message);
+            }
+        }
+
+        function toggleMute() {
+            if (localStream) {
+                const audioTrack = localStream.getAudioTracks()[0];
+                if (audioTrack) {
+                    audioTrack.enabled = !audioTrack.enabled;
+                    log(audioTrack.enabled ? '🔊 Unmuted' : '🔇 Muted');
+                    
+                    socket.emit('webrtc_media_state', {
+                        callId: currentCallId,
+                        peerType: 'agent',
+                        audioEnabled: audioTrack.enabled
+                    });
+                }
+            }
+        }
+
+        function holdCall() {
+            log('⏸️ Hold call feature - Coming soon!');
+        }
+
+        // UI helpers
+        function showAgentDashboard() {
+            document.getElementById('agentLogin').style.display = 'none';
+            document.getElementById('agentStatus').style.display = 'block';
+            
+            document.getElementById('agentName').textContent = currentAgent.fullName;
+            updateAgentStatus(currentAgent.status);
+            updateStats();
+        }
+
+        function showLoginForm() {
+            document.getElementById('agentLogin').style.display = 'block';
+            document.getElementById('agentStatus').style.display = 'none';
+            document.getElementById('callControls').style.display = 'none';
+        }
+
+        function updateAgentStatus(status) {
+            const statusEl = document.getElementById('currentStatus');
+            statusEl.textContent = status.toUpperCase();
+            statusEl.className = 'status-badge status-' + status;
+        }
+
+        function updateStats() {
+            if (currentAgent) {
+                document.getElementById('totalCalls').textContent = currentAgent.totalCalls || 0;
+                document.getElementById('avgHandleTime').textContent = (currentAgent.avgHandleTime || 0) + 's';
+                document.getElementById('totalTalkTime').textContent = (currentAgent.totalTalkTime || 0) + 's';
+            }
+        }
+
+        function log(message) {
+            const logEl = document.getElementById('activityLog');
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-time">[${time}]</span>${message}`;
+            
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+            
+            console.log('[' + time + '] ' + message);
+        }
+    </script>
+</body>
+</html>

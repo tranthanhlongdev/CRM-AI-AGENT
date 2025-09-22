@@ -1,0 +1,216 @@
+========================================
+AGENT STATUS API - CURL TEST COMMANDS
+========================================
+
+🌐 BASE URL: http://localhost:8000
+
+📊 API ENDPOINTS CHO TRẠNG THÁI AGENT
+=====================================
+
+## 1. Lấy trạng thái tất cả agents
+GET /api/agents/status
+
+curl http://localhost:8000/api/agents/status | jq .
+
+Response:
+{
+  "success": true,
+  "data": {
+    "agents": [
+      {
+        "id": 1,
+        "userId": 1,
+        "username": "admin",
+        "fullName": "Admin User",
+        "status": "available",
+        "currentCallId": null,
+        "totalCalls": 0,
+        "avgHandleTime": 0.0,
+        "priority": 1,
+        "lastActivity": "2025-09-18T15:26:21"
+      }
+    ],
+    "stats": {
+      "total": 2,
+      "available": 1,
+      "busy": 0,
+      "away": 0,
+      "offline": 1
+    }
+  },
+  "message": "Lấy trạng thái 2 agents thành công"
+}
+
+## 2. Lấy trạng thái agent cụ thể theo ID
+GET /api/agents/{agent_id}/status
+
+curl http://localhost:8000/api/agents/1/status | jq .
+
+## 3. Lấy trạng thái agent theo User ID
+GET /api/agents/user/{user_id}/status
+
+curl http://localhost:8000/api/agents/user/1/status | jq .
+
+## 4. Lấy danh sách agents đang available
+GET /api/agents/available
+
+curl http://localhost:8000/api/agents/available | jq .
+
+Response:
+{
+  "success": true,
+  "data": {
+    "agents": [...],
+    "count": 2
+  },
+  "message": "Có 2 agents đang sẵn sàng"
+}
+
+## 5. Cập nhật trạng thái agent
+PUT /api/agents/{agent_id}/status
+
+curl -X PUT http://localhost:8000/api/agents/1/status \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "busy"
+  }' | jq .
+
+Valid statuses: available, busy, on_call, away, offline
+
+## 6. Tạo agent profile cho user
+POST /api/agents/create
+
+curl -X POST http://localhost:8000/api/agents/create \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": 3,
+    "status": "available",
+    "priority": 1
+  }' | jq .
+
+🔄 TEST FLOW HOÀN CHỈNH
+======================
+
+## Step 1: Kiểm tra users có sẵn
+curl http://localhost:8000/api/auth/users | jq .
+
+## Step 2: Tạo agents cho users
+curl -X POST http://localhost:8000/api/agents/create \
+  -H "Content-Type: application/json" \
+  -d '{"userId": 1, "status": "available", "priority": 1}' | jq .
+
+curl -X POST http://localhost:8000/api/agents/create \
+  -H "Content-Type: application/json" \
+  -d '{"userId": 2, "status": "offline", "priority": 2}' | jq .
+
+## Step 3: Kiểm tra trạng thái tất cả agents
+curl http://localhost:8000/api/agents/status | jq .
+
+## Step 4: Cập nhật agent offline thành available
+curl -X PUT http://localhost:8000/api/agents/2/status \
+  -H "Content-Type: application/json" \
+  -d '{"status": "available"}' | jq .
+
+## Step 5: Kiểm tra agents available
+curl http://localhost:8000/api/agents/available | jq .
+
+## Step 6: Test cuộc gọi với agents available
+curl -X POST http://localhost:8000/api/call/demo/initiate \
+  -H "Content-Type: application/json" \
+  -d '{"callerNumber": "0912345678"}' | jq .
+
+## Step 7: Kiểm tra trạng thái sau cuộc gọi
+curl http://localhost:8000/api/call/demo/status | jq .
+
+📱 TÍCH HỢP SOFTPHONE
+====================
+
+## Kiểm tra agents trước khi gọi
+curl http://localhost:8000/api/agents/available | jq .
+
+## Tạo cuộc gọi
+curl -X POST http://localhost:8000/api/call/demo/initiate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "callerNumber": "0987654321",
+    "calledNumber": "1900"
+  }' | jq .
+
+Phản hồi có thể là:
+- status: "ringing" - có agent available
+- status: "queued" - không có agent, vào hàng đợi
+
+🎧 TÍCH HỢP AGENT DASHBOARD
+==========================
+
+## Agent login và set status
+curl -X PUT http://localhost:8000/api/agents/user/1/status \
+  -H "Content-Type: application/json" \
+  -d '{"status": "available"}' | jq .
+
+## Monitor real-time agent status
+curl http://localhost:8000/api/agents/status | jq .
+
+## Set agent away
+curl -X PUT http://localhost:8000/api/agents/1/status \
+  -H "Content-Type: application/json" \
+  -d '{"status": "away"}' | jq .
+
+## Set agent offline
+curl -X PUT http://localhost:8000/api/agents/1/status \
+  -H "Content-Type: application/json" \
+  -d '{"status": "offline"}' | jq .
+
+🚨 ERROR CASES
+==============
+
+## Agent không tồn tại
+curl http://localhost:8000/api/agents/999/status | jq .
+Response: {"success": false, "message": "Agent không tồn tại"} (404)
+
+## Status không hợp lệ
+curl -X PUT http://localhost:8000/api/agents/1/status \
+  -H "Content-Type: application/json" \
+  -d '{"status": "invalid_status"}' | jq .
+Response: {"success": false, "message": "Trạng thái không hợp lệ..."} (400)
+
+## Tạo agent cho user không tồn tại
+curl -X POST http://localhost:8000/api/agents/create \
+  -H "Content-Type: application/json" \
+  -d '{"userId": 999}' | jq .
+Response: {"success": false, "message": "User không tồn tại"} (404)
+
+## Tạo agent đã tồn tại
+curl -X POST http://localhost:8000/api/agents/create \
+  -H "Content-Type: application/json" \
+  -d '{"userId": 1}' | jq .
+Response: {"success": false, "message": "Agent đã tồn tại cho user này"} (409)
+
+📈 MONITORING COMMANDS
+=====================
+
+## Real-time monitoring script
+while true; do
+  echo "=== $(date) ==="
+  curl -s http://localhost:8000/api/agents/status | jq '.data.stats'
+  echo
+  sleep 5
+done
+
+## Quick status check
+curl -s http://localhost:8000/api/agents/status | jq '.data.stats'
+
+## Available agents count
+curl -s http://localhost:8000/api/agents/available | jq '.data.count'
+
+========================================
+END OF AGENT STATUS API TESTS
+========================================
+
+✅ TẤT CẢ API ĐÃ ĐƯỢC TEST VÀ HOẠT ĐỘNG TỐDÌ!
+
+📞 Sẵn sàng để tích hợp frontend:
+- Softphone có thể check available agents
+- Agent dashboard có thể update status  
+- Call routing hoạt động với agents thật
+- WebSocket events đầy đủ cho real-time updates

@@ -1,0 +1,70 @@
+========================================
+VOICEBOT BACKEND - API ENDPOINTS SUMMARY
+========================================
+
+🌐 BASE URL: http://localhost:8000
+
+🔓 PUBLIC ENDPOINTS (No Authentication)
+======================================
+
+## Health Check
+GET /health
+Response: { "status": "healthy", "message": "CRM API is running" }
+
+## Demo Call Center (For Testing)
+GET /api/call/demo/status
+POST /api/call/demo/initiate
+GET /api/call/demo/agents  
+GET /api/call/demo/test-websocket
+
+🔐 AUTHENTICATED ENDPOINTS
+=========================
+
+## Authentication
+POST /api/auth/login
+POST /api/auth/register
+GET /api/auth/users
+POST /api/auth/me
+
+## Customer Management
+GET /api/customers/search
+POST /api/customers/create
+GET /api/customers/<cif_number>
+GET /api/customers/branches
+GET /api/customers/stats
+
+## Ticket Management
+POST /api/tickets
+POST /api/tickets/search
+GET /api/tickets/<ticket_id>
+PUT /api/tickets/<ticket_id>
+
+## Bot & AI
+POST /api/bot/verify-phone
+POST /api/bot/chat
+
+## Card Management
+GET /api/cards/by-cif/<cif_number>
+POST /api/cards/block
+
+## Real-time Features
+GET /api/realtime/agents
+POST /api/realtime/agent-status
+GET /api/realtime/call-stats
+
+🔌 WEBSOCKET URL
+===============
+
+WebSocket: http://localhost:8000
+Protocol: Socket.IO v4.x
+CORS: Enabled
+
+📋 REQUEST/RESPONSE FORMATS
+==========================
+
+All requests: Content-Type: application/json
+All responses: JSON format with { success, data, message }
+
+Authentication: Authorization: Bearer <jwt_token>
+
+========================================

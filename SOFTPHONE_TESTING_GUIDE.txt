@@ -1,0 +1,216 @@
+=========================================
+VOICEBOT SOFTPHONE - HƯỚNG DẪN TEST
+=========================================
+
+🎯 TỔNG QUAN
+============
+
+Backend Python đã tích hợp sẵn 2 trang web để test hệ thống call center:
+
+1. **Softphone** (Customer) - http://localhost:8000/softphone
+2. **Agent Dashboard** (Agent) - http://localhost:8000/agent-dashboard
+
+🚀 CÁCH TEST CALL FLOW
+======================
+
+### Bước 1: Khởi động Server
+```bash
+cd /path/to/VoiceBot
+source venv/bin/activate
+python app.py
+```
+
+### Bước 2: Mở 3 Tab Browser
+
+**Tab 1 - CRM System:**
+- Vào: http://localhost:8000/crm-demo
+- CRM sẽ tự động kết nối và nhận WebSocket events
+
+**Tab 2 - Agent Dashboard:**
+- Vào: http://localhost:8000/agent-dashboard
+- Chọn agent (Admin User hoặc Test User CRM)
+- Click "Login"
+- Click "🟢 Available" để sẵn sàng nhận cuộc gọi
+
+**Tab 3 - Softphone:**
+- Vào: http://localhost:8000/softphone
+- Nhập số điện thoại (mặc định: 0912345678)
+- Click "📞 Gọi"
+
+### Bước 3: Test Call Flow
+
+1. **Softphone gọi** → Cuộc gọi được tạo và tìm agent available
+2. **CRM nhận event** → Popup hiển thị incoming call với thông tin customer
+3. **CRM có thể answer/reject** → Hoặc để agent tự answer
+4. **Agent nhận cuộc gọi** → Xuất hiện trong "Incoming Calls", click "📞 Answer"
+5. **Kết nối thành công** → Cả 2 bên có thể nói chuyện qua WebRTC
+6. **CRM track real-time** → Theo dõi trạng thái cuộc gọi và agent
+7. **Kết thúc cuộc gọi** → Click "📴 End Call" ở bất kỳ bên nào
+
+🎙️ TÍNH NĂNG VOICE CALL
+========================
+
+### WebRTC Features:
+- ✅ **Real-time audio** giữa Customer và Agent
+- ✅ **Mute/Unmute** controls
+- ✅ **Auto microphone access** (cần cho phép browser)
+- ✅ **Echo cancellation** và noise suppression
+- ✅ **Connection monitoring**
+
+### Browser Requirements:
+- **Chrome/Edge**: Recommended ✅
+- **Firefox**: Supported ✅
+- **Safari**: Limited support ⚠️
+- **HTTPS**: Required for production 🔒
+
+🔧 CÁC TÍNH NĂNG TEST
+=====================
+
+### Softphone Features:
+- 📞 **Make Call** - Gọi tới tổng đài
+- 📴 **End Call** - Kết thúc cuộc gọi
+- 🔇 **Mute/Unmute** - Tắt/bật micro
+- 👥 **View Agents** - Xem danh sách agents available
+- 🔄 **Auto Test** - Test tự động call flow
+- 📊 **Real-time logs** - Theo dõi events
+
+### Agent Dashboard Features:
+- 🔐 **Agent Login** - Đăng nhập agent
+- 📊 **Status Management** - Thay đổi trạng thái (Available/Busy/Away)
+- 📞 **Answer Calls** - Nhận cuộc gọi đến
+- ❌ **Reject Calls** - Từ chối cuộc gọi
+- 🎙️ **Call Controls** - Mute, Hold, End call
+- 📈 **Statistics** - Thống kê cuộc gọi
+- 📋 **Activity Log** - Lịch sử hoạt động
+
+🧪 TEST SCENARIOS
+=================
+
+### Scenario 1: Basic Call Flow
+1. Agent login và set status = "available"
+2. Customer gọi từ softphone
+3. Agent answer call
+4. Voice conversation
+5. Either side end call
+
+### Scenario 2: Agent Busy
+1. Agent set status = "busy"
+2. Customer gọi → Call vào queue
+3. Agent set status = "available"
+4. System auto route call to agent
+
+### Scenario 3: Multiple Agents
+1. Có 2+ agents "available"
+2. Customer gọi → Route to highest priority agent
+3. Test load balancing
+
+### Scenario 4: Call Queue
+1. Tất cả agents "busy"
+2. Multiple customers gọi → All vào queue
+3. Agent available → System route theo thứ tự queue
+
+### Scenario 5: WebRTC Voice
+1. Complete call flow
+2. Both sides mute/unmute
+3. Check audio quality
+4. Monitor connection status
+
+📊 MONITORING & DEBUG
+=====================
+
+### Real-time Monitoring:
+- **Softphone logs** - Theo dõi call events
+- **Agent dashboard logs** - Theo dõi agent activities
+- **Browser console** - WebRTC debug info
+- **Server logs** - Backend events
+
+### API Endpoints for Monitoring:
+```bash
+# Check agent status
+curl http://localhost:8000/api/agents/status
+
+# Check available agents
+curl http://localhost:8000/api/agents/available
+
+# Check call center status
+curl http://localhost:8000/api/call-center/status
+
+# Check WebRTC config
+curl http://localhost:8000/api/webrtc/config
+```
+
+### Common Issues & Solutions:
+
+**1. Microphone Permission Denied**
+- Solution: Enable microphone trong browser settings
+- Chrome: Settings → Privacy → Microphone → Allow
+
+**2. No Audio**
+- Check browser microphone permissions
+- Verify WebRTC connection state in console
+- Test with different browsers
+
+**3. Call Not Connecting**
+- Check agent status (must be "available")
+- Verify WebSocket connection (green status)
+- Check server logs for errors
+
+**4. WebRTC Connection Failed**
+- Check internet connection
+- Verify STUN servers accessibility
+- Try different network/VPN
+
+🎮 QUICK TEST COMMANDS
+======================
+
+### Auto Test via Softphone:
+1. Vào http://localhost:8000/softphone
+2. Click "👤 Tạo Test Agent" 
+3. Click "🔄 Test Call Flow"
+4. Observe auto call flow
+
+### Manual API Test:
+```bash
+# Create agent
+curl -X POST http://localhost:8000/api/agents/create \
+  -H "Content-Type: application/json" \
+  -d '{"userId": 1, "status": "available", "priority": 1}'
+
+# Make call
+curl -X POST http://localhost:8000/api/call/demo/initiate \
+  -H "Content-Type: application/json" \
+  -d '{"callerNumber": "0912345678"}'
+
+# Check call status
+curl http://localhost:8000/api/call-center/status
+```
+
+📱 PRODUCTION DEPLOYMENT
+========================
+
+### Requirements for Production:
+1. **HTTPS Certificate** - WebRTC requires HTTPS
+2. **TURN Servers** - For NAT traversal
+3. **Load Balancer** - For multiple backend instances
+4. **Database Scaling** - MySQL cluster/replication
+5. **Error Monitoring** - Sentry, New Relic, etc.
+
+### Security Considerations:
+1. **Authentication** - JWT tokens for API access
+2. **Rate Limiting** - Prevent call flooding
+3. **Input Validation** - Sanitize all inputs
+4. **Audit Logging** - Log all call activities
+5. **Encryption** - End-to-end encryption for sensitive data
+
+=========================================
+READY TO TEST! 🚀📞🎙️
+=========================================
+
+Hệ thống call center đã sẵn sàng cho việc test!
+
+1. Mở http://localhost:8000/agent-dashboard (Agent)
+2. Mở http://localhost:8000/softphone (Customer)  
+3. Test call flow và voice conversation
+4. Monitor real-time logs và events
+
+✨ Voice call thật sự giữa Customer và Agent! ✨

@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎧 VoiceBot Call Center - WebSocket Integration Demo</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; text-align: center; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
+        .section { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .section h3 { color: #2d3748; margin-bottom: 15px; font-size: 18px; }
+        .status { padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: bold; margin: 5px; display: inline-block; }
+        .status-connected { background: #d4edda; color: #155724; }
+        .status-disconnected { background: #f8d7da; color: #721c24; }
+        .status-available { background: #d1ecf1; color: #0c5460; }
+        .status-busy { background: #fff3cd; color: #856404; }
+        .status-ringing { background: #cce5ff; color: #004085; }
+        .button { padding: 12px 20px; margin: 5px; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; transition: all 0.2s; }
+        .button-primary { background: #4299e1; color: white; }
+        .button-primary:hover { background: #3182ce; }
+        .button-success { background: #48bb78; color: white; }
+        .button-success:hover { background: #38a169; }
+        .button-danger { background: #f56565; color: white; }
+        .button-danger:hover { background: #e53e3e; }
+        .button-warning { background: #ed8936; color: white; }
+        .button-warning:hover { background: #dd6b20; }
+        input, select { padding: 10px; margin: 5px; border: 2px solid #e2e8f0; border-radius: 6px; width: 100%; }
+        input:focus, select:focus { outline: none; border-color: #4299e1; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin: 15px 0; }
+        .stat-box { text-align: center; padding: 15px; background: #f7fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
+        .stat-number { font-size: 24px; font-weight: bold; color: #2d3748; }
+        .stat-label { font-size: 12px; color: #718096; margin-top: 5px; }
+        .log { height: 200px; overflow-y: auto; border: 1px solid #e2e8f0; padding: 10px; background: #1a202c; color: #e2e8f0; font-family: 'Courier New', monospace; font-size: 12px; border-radius: 6px; }
+        .incoming-call { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #48bb78, #38a169); color: white; padding: 20px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 1000; animation: slideIn 0.3s ease-out; max-width: 300px; }
+        .current-call { position: fixed; bottom: 20px; right: 20px; background: linear-gradient(135deg, #4299e1, #3182ce); color: white; padding: 15px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 1000; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 15px 0; }
+        .keypad button { aspect-ratio: 1; padding: 15px; font-size: 18px; font-weight: bold; }
+        .agent-list { max-height: 300px; overflow-y: auto; }
+        .agent-item { display: flex; justify-content: between; align-items: center; padding: 10px; border-bottom: 1px solid #e2e8f0; }
+        .agent-name { font-weight: 500; flex: 1; }
+        .connection-indicator { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; }
+        .indicator-connected { background: #48bb78; animation: pulse 2s infinite; }
+        .indicator-disconnected { background: #f56565; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🎧 VoiceBot Call Center - WebSocket Integration</h1>
+            <p>Real-time Voice Communication System</p>
+            <div style="margin-top: 15px;">
+                <span class="connection-indicator" id="connectionIndicator"></span>
+                <span id="connectionStatus">Initializing...</span>
+            </div>
+        </div>
+
+        <!-- Main Grid -->
+        <div class="grid">
+            <!-- Customer Softphone -->
+            <div class="section">
+                <h3>📱 Customer Softphone</h3>
+                <div>
+                    <input type="tel" id="customerPhone" placeholder="Your phone number" value="0912345678">
+                    <input type="tel" id="dialNumber" placeholder="Dial number (1900)" value="1900">
+                    <button class="button button-primary" onclick="customerMakeCall()">📞 Call VoiceBot</button>
+                    <button class="button button-danger" onclick="customerEndCall()" style="display: none;" id="customerEndBtn">📴 End Call</button>
+                </div>
+                <div style="margin-top: 15px;">
+                    <div><strong>Status:</strong> <span id="customerStatus">Ready</span></div>
+                    <div id="customerQueue" style="display: none;">
+                        <strong>Queue Position:</strong> <span id="queuePosition">-</span> | 
+                        <strong>Wait Time:</strong> <span id="waitTime">-</span>s
+                    </div>
+                    <div id="customerTimer" style="display: none;">
+                        <strong>Call Duration:</strong> <span id="customerCallTime">00:00</span>
+                    </div>
+                </div>
+                
+                <!-- DTMF Keypad -->
+                <div id="customerKeypad" style="display: none;">
+                    <h4>DTMF Keypad</h4>
+                    <div class="keypad">
+                        <button class="button" onclick="sendDTMF('1')">1</button>
+                        <button class="button" onclick="sendDTMF('2')">2</button>
+                        <button class="button" onclick="sendDTMF('3')">3</button>
+                        <button class="button" onclick="sendDTMF('4')">4</button>
+                        <button class="button" onclick="sendDTMF('5')">5</button>
+                        <button class="button" onclick="sendDTMF('6')">6</button>
+                        <button class="button" onclick="sendDTMF('7')">7</button>
+                        <button class="button" onclick="sendDTMF('8')">8</button>
+                        <button class="button" onclick="sendDTMF('9')">9</button>
+                        <button class="button" onclick="sendDTMF('*')">*</button>
+                        <button class="button" onclick="sendDTMF('0')">0</button>
+                        <button class="button" onclick="sendDTMF('#')">#</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agent Dashboard -->
+            <div class="section">
+                <h3>🎧 Agent Dashboard</h3>
+                <div>
+                    <input type="text" id="agentUsername" placeholder="Agent username" value="agent01">
+                    <button class="button button-primary" onclick="agentLogin()">👤 Login Agent</button>
+                    <select id="agentStatus" onchange="changeAgentStatus()" disabled>
+                        <option value="available">Available</option>
+                        <option value="busy">Busy</option>
+                        <option value="away">Away</option>
+                        <option value="offline">Offline</option>
+                    </select>
+                </div>
+                <div style="margin-top: 15px;">
+                    <div><strong>Agent:</strong> <span id="agentName">-</span></div>
+                    <div><strong>Status:</strong> <span id="currentAgentStatus">Offline</span></div>
+                    <div><strong>Active Call:</strong> <span id="agentActiveCall">None</span></div>
+                </div>
+
+                <!-- Agent Controls -->
+                <div style="margin-top: 15px;">
+                    <button class="button button-success" onclick="getDashboardData()">📊 Refresh Dashboard</button>
+                    <button class="button button-warning" onclick="simulateIncomingCall()">📞 Simulate Incoming</button>
+                    <button class="button button-primary" onclick="makeOutboundCall()">📞 Make Outbound</button>
+                </div>
+                <input type="tel" id="outboundTarget" placeholder="Target number for outbound" style="margin-top: 10px;">
+            </div>
+
+            <!-- Real-time Stats -->
+            <div class="section">
+                <h3>📈 Real-time Statistics</h3>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <div class="stat-number" id="totalActiveCalls">0</div>
+                        <div class="stat-label">Active Calls</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-number" id="totalQueue">0</div>
+                        <div class="stat-label">Queue</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-number" id="availableAgents">0</div>
+                        <div class="stat-label">Available</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-number" id="busyAgents">0</div>
+                        <div class="stat-label">Busy</div>
+                    </div>
+                </div>
+                <button class="button button-primary" onclick="refreshStats()">🔄 Refresh Stats</button>
+            </div>
+
+            <!-- Agents List -->
+            <div class="section">
+                <h3>👥 Agents Status</h3>
+                <div class="agent-list" id="agentsList">
+                    <div style="text-align: center; color: #718096; padding: 20px;">
+                        No agents data available
+                    </div>
+                </div>
+            </div>
+
+            <!-- Call History -->
+            <div class="section">
+                <h3>📞 Call History</h3>
+                <div id="callHistory" style="max-height: 250px; overflow-y: auto;">
+                    <div style="text-align: center; color: #718096; padding: 20px;">
+                        No call history yet
+                    </div>
+                </div>
+                <button class="button button-primary" onclick="clearCallHistory()">🗑️ Clear History</button>
+            </div>
+
+            <!-- Live Updates Log -->
+            <div class="section">
+                <h3>📋 Live Event Log</h3>
+                <div class="log" id="eventLog"></div>
+                <button class="button button-warning" onclick="clearLog()">🗑️ Clear Log</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Incoming Call Modal -->
+    <div id="incomingCallModal" class="incoming-call" style="display: none;">
+        <h3>📞 Incoming Call</h3>
+        <div><strong>From:</strong> <span id="incomingCaller">-</span></div>
+        <div><strong>Customer:</strong> <span id="incomingCustomer">-</span></div>
+        <div style="margin-top: 15px;">
+            <button class="button button-success" onclick="answerCall()">✅ Answer</button>
+            <button class="button button-danger" onclick="rejectCall()">❌ Reject</button>
+        </div>
+    </div>
+
+    <!-- Current Call Status -->
+    <div id="currentCallStatus" class="current-call" style="display: none;">
+        <div><strong>Active Call</strong></div>
+        <div>📞 <span id="currentCallNumber">-</span></div>
+        <div>⏱️ <span id="currentCallDuration">00:00</span></div>
+        <button class="button button-danger" onclick="endActiveCall()" style="margin-top: 10px;">End Call</button>
+    </div>
+
+    <script>
+        // Global variables
+        let customerSocket = null;
+        let agentSocket = null;
+        let currentCall = null;
+        let incomingCall = null;
+        let callTimer = null;
+        let callStartTime = null;
+        let callHistory = [];
+        let isLoggedIn = false;
+        let currentAgent = null;
+
+        // WebSocket connection
+        const SERVER_URL = 'http://localhost:8000';
+
+        // Initialize connections
+        window.onload = function() {
+            addLog('🔌 Initializing WebSocket connections...');
+            initializeCustomerSocket();
+            updateConnectionStatus(false);
+        };
+
+        function initializeCustomerSocket() {
+            try {
+                customerSocket = io(SERVER_URL, {
+                    transports: ['websocket', 'polling'],
+                    autoConnect: true,
+                    reconnection: true,
+                    reconnectionAttempts: 5,
+                    reconnectionDelay: 1000
+                });
+
+                // Customer socket events
+                customerSocket.on('connect', () => {
+                    addLog('✅ Customer socket connected: ' + customerSocket.id);
+                    updateConnectionStatus(true);
+                });
+
+                customerSocket.on('disconnect', () => {
+                    addLog('❌ Customer socket disconnected');
+                    updateConnectionStatus(false);
+                });
+
+                customerSocket.on('call_initiated', (data) => {
+                    addLog('📞 Call initiated: ' + JSON.stringify(data));
+                    document.getElementById('customerStatus').textContent = 'Calling...';
+                    document.getElementById('customerEndBtn').style.display = 'inline-block';
+                    currentCall = data;
+                });
+
+                customerSocket.on('call_queued', (data) => {
+                    addLog('⏳ Call queued: ' + JSON.stringify(data));
+                    document.getElementById('customerStatus').textContent = 'In Queue';
+                    document.getElementById('customerQueue').style.display = 'block';
+                    document.getElementById('queuePosition').textContent = data.queuePosition;
+                    document.getElementById('waitTime').textContent = data.estimatedWaitTime;
+                });
+
+                customerSocket.on('call_connected', (data) => {
+                    addLog('✅ Call connected: ' + JSON.stringify(data));
+                    document.getElementById('customerStatus').textContent = 'Connected';
+                    document.getElementById('customerQueue').style.display = 'none';
+                    document.getElementById('customerTimer').style.display = 'block';
+                    document.getElementById('customerKeypad').style.display = 'block';
+                    startCallTimer();
+                });
+
+                customerSocket.on('call_ended', (data) => {
+                    addLog('📴 Call ended: ' + JSON.stringify(data));
+                    resetCustomerUI();
+                    addToCallHistory(data);
+                });
+
+                customerSocket.on('call_failed', (data) => {
+                    addLog('❌ Call failed: ' + JSON.stringify(data));
+                    resetCustomerUI();
+                    alert('Call failed: ' + (data.message || 'Unknown error'));
+                });
+
+                customerSocket.on('error', (data) => {
+                    addLog('🚨 Customer error: ' + JSON.stringify(data));
+                    alert('Error: ' + (data.message || 'Unknown error'));
+                });
+
+            } catch (error) {
+                addLog('🚨 Failed to initialize customer socket: ' + error.message);
+            }
+        }
+
+        function initializeAgentSocket() {
+            try {
+                agentSocket = io(SERVER_URL, {
+                    transports: ['websocket', 'polling'],
+                    autoConnect: true,
+                    reconnection: true
+                });
+
+                // Agent socket events
+                agentSocket.on('connect', () => {
+                    addLog('✅ Agent socket connected: ' + agentSocket.id);
+                });
+
+                agentSocket.on('agent_login_success', (data) => {
+                    addLog('👤 Agent login success: ' + JSON.stringify(data));
+                    isLoggedIn = true;
+                    currentAgent = data;
+                    document.getElementById('agentName').textContent = data.username;
+                    document.getElementById('currentAgentStatus').textContent = data.status || 'available';
+                    document.getElementById('agentStatus').disabled = false;
+                    joinCallCenter();
+                });
+
+                agentSocket.on('incoming_call', (data) => {
+                    addLog('📞 Incoming call for agent: ' + JSON.stringify(data));
+                    incomingCall = data;
+                    showIncomingCall(data);
+                    playNotificationSound();
+                });
+
+                agentSocket.on('call_answered', (data) => {
+                    addLog('✅ Agent answered call: ' + JSON.stringify(data));
+                    hideIncomingCall();
+                    showCurrentCall(data);
+                    document.getElementById('agentActiveCall').textContent = data.callerNumber;
+                });
+
+                agentSocket.on('call_ended', (data) => {
+                    addLog('📴 Agent call ended: ' + JSON.stringify(data));
+                    hideCurrentCall();
+                    document.getElementById('agentActiveCall').textContent = 'None';
+                    addToCallHistory(data);
+                });
+
+                agentSocket.on('dashboard_data', (data) => {
+                    addLog('📊 Dashboard data received');
+                    updateDashboardStats(data.stats);
+                    updateAgentsList(data.agentsStatus);
+                });
+
+                agentSocket.on('agent_status_update', (data) => {
+                    addLog('🔄 Agent status update: ' + JSON.stringify(data));
+                    updateAgentInList(data);
+                });
+
+                agentSocket.on('real_time_stats', (data) => {
+                    updateDashboardStats(data);
+                });
+
+                agentSocket.on('error', (data) => {
+                    addLog('🚨 Agent error: ' + JSON.stringify(data));
+                    alert('Agent error: ' + (data.message || 'Unknown error'));
+                });
+
+            } catch (error) {
+                addLog('🚨 Failed to initialize agent socket: ' + error.message);
+            }
+        }
+
+        // Customer functions
+        function customerMakeCall() {
+            const phoneNumber = document.getElementById('customerPhone').value;
+            const dialNumber = document.getElementById('dialNumber').value;
+            
+            if (!phoneNumber || !dialNumber) {
+                alert('Please enter phone numbers');
+                return;
+            }
+
+            customerSocket.emit('make_call', {
+                callerNumber: phoneNumber,
+                calledNumber: dialNumber,
+                timestamp: new Date().toISOString()
+            });
+
+            addLog(`📞 Making call from ${phoneNumber} to ${dialNumber}`);
+        }
+
+        function customerEndCall() {
+            if (currentCall) {
+                customerSocket.emit('end_call', {
+                    callId: currentCall.callId,
+                    endedBy: 'caller',
+                    timestamp: new Date().toISOString()
+                });
+            }
+        }
+
+        function sendDTMF(tone) {
+            if (currentCall && customerSocket) {
+                customerSocket.emit('send_dtmf', {
+                    callId: currentCall.callId,
+                    tone: tone,
+                    timestamp: new Date().toISOString()
+                });
+                addLog(`📟 DTMF sent: ${tone}`);
+            }
+        }
+
+        function resetCustomerUI() {
+            document.getElementById('customerStatus').textContent = 'Ready';
+            document.getElementById('customerQueue').style.display = 'none';
+            document.getElementById('customerTimer').style.display = 'none';
+            document.getElementById('customerKeypad').style.display = 'none';
+            document.getElementById('customerEndBtn').style.display = 'none';
+            stopCallTimer();
+            currentCall = null;
+        }
+
+        // Agent functions
+        function agentLogin() {
+            const username = document.getElementById('agentUsername').value;
+            if (!username) {
+                alert('Please enter agent username');
+                return;
+            }
+
+            if (!agentSocket) {
+                initializeAgentSocket();
+            }
+
+            agentSocket.emit('agent_login', {
+                userId: Date.now(),
+                username: username,
+                fullName: username + ' Demo'
+            });
+
+            addLog(`👤 Logging in agent: ${username}`);
+        }
+
+        function joinCallCenter() {
+            if (agentSocket && isLoggedIn) {
+                agentSocket.emit('join_call_center');
+                getDashboardData();
+            }
+        }
+
+        function changeAgentStatus() {
+            const newStatus = document.getElementById('agentStatus').value;
+            if (agentSocket && isLoggedIn) {
+                agentSocket.emit('change_agent_status', {
+                    userId: currentAgent.userId,
+                    status: newStatus
+                });
+                addLog(`🔄 Changing agent status to: ${newStatus}`);
+            }
+        }
+
+        function getDashboardData() {
+            if (agentSocket && isLoggedIn) {
+                agentSocket.emit('get_dashboard_data');
+                addLog('📊 Requesting dashboard data');
+            }
+        }
+
+        function simulateIncomingCall() {
+            if (agentSocket && isLoggedIn) {
+                // Simulate an incoming call
+                const callData = {
+                    callId: 'CALL_' + Date.now(),
+                    callerNumber: '+84987654321',
+                    customer: {
+                        hoTen: 'Nguyễn Văn A',
+                        cifNumber: 'CIF123456'
+                    }
+                };
+                
+                agentSocket.emit('simulate_incoming_call', callData);
+                addLog('📞 Simulating incoming call');
+            }
+        }
+
+        function makeOutboundCall() {
+            const target = document.getElementById('outboundTarget').value;
+            if (!target) {
+                alert('Please enter target number');
+                return;
+            }
+
+            if (agentSocket && isLoggedIn) {
+                agentSocket.emit('make_outbound_call', {
+                    agentId: currentAgent.userId,
+                    targetNumber: target,
+                    timestamp: new Date().toISOString()
+                });
+                addLog(`📞 Making outbound call to: ${target}`);
+            }
+        }
+
+        function answerCall() {
+            if (incomingCall && agentSocket) {
+                agentSocket.emit('answer_call', {
+                    callId: incomingCall.callId,
+                    agentId: currentAgent.userId
+                });
+                addLog(`✅ Answering call: ${incomingCall.callId}`);
+            }
+        }
+
+        function rejectCall() {
+            if (incomingCall && agentSocket) {
+                agentSocket.emit('reject_call', {
+                    callId: incomingCall.callId,
+                    agentId: currentAgent.userId,
+                    reason: 'agent_rejected'
+                });
+                hideIncomingCall();
+                addLog(`❌ Rejecting call: ${incomingCall.callId}`);
+            }
+        }
+
+        function endActiveCall() {
+            if (agentSocket && isLoggedIn) {
+                agentSocket.emit('end_call', {
+                    callId: currentCall?.callId,
+                    endedBy: 'agent',
+                    agentId: currentAgent.userId
+                });
+                addLog('📴 Ending active call');
+            }
+        }
+
+        // UI functions
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('connectionIndicator');
+            const status = document.getElementById('connectionStatus');
+            
+            if (connected) {
+                indicator.className = 'connection-indicator indicator-connected';
+                status.textContent = 'Connected to VoiceBot Server';
+            } else {
+                indicator.className = 'connection-indicator indicator-disconnected';
+                status.textContent = 'Disconnected from Server';
+            }
+        }
+
+        function showIncomingCall(data) {
+            document.getElementById('incomingCaller').textContent = data.callerNumber;
+            document.getElementById('incomingCustomer').textContent = data.customer?.hoTen || 'Unknown';
+            document.getElementById('incomingCallModal').style.display = 'block';
+        }
+
+        function hideIncomingCall() {
+            document.getElementById('incomingCallModal').style.display = 'none';
+            incomingCall = null;
+        }
+
+        function showCurrentCall(data) {
+            document.getElementById('currentCallNumber').textContent = data.callerNumber;
+            document.getElementById('currentCallStatus').style.display = 'block';
+            startCallTimer();
+        }
+
+        function hideCurrentCall() {
+            document.getElementById('currentCallStatus').style.display = 'none';
+            stopCallTimer();
+        }
+
+        function updateDashboardStats(stats) {
+            if (stats) {
+                document.getElementById('totalActiveCalls').textContent = stats.totalActiveCalls || 0;
+                document.getElementById('totalQueue').textContent = stats.totalQueue || 0;
+                document.getElementById('availableAgents').textContent = stats.availableAgents || 0;
+                document.getElementById('busyAgents').textContent = stats.busyAgents || 0;
+            }
+        }
+
+        function updateAgentsList(agents) {
+            const container = document.getElementById('agentsList');
+            if (!agents || agents.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #718096; padding: 20px;">No agents online</div>';
+                return;
+            }
+
+            container.innerHTML = agents.map(agent => `
+                <div class="agent-item">
+                    <div class="agent-name">${agent.fullName || agent.username}</div>
+                    <div class="status status-${agent.status}">${agent.status}</div>
+                </div>
+            `).join('');
+        }
+
+        function updateAgentInList(data) {
+            // Update specific agent in the list
+            const agents = document.querySelectorAll('.agent-item');
+            agents.forEach(item => {
+                const nameEl = item.querySelector('.agent-name');
+                if (nameEl && nameEl.textContent.includes(data.username)) {
+                    const statusEl = item.querySelector('.status');
+                    statusEl.className = `status status-${data.status}`;
+                    statusEl.textContent = data.status;
+                }
+            });
+        }
+
+        function addToCallHistory(data) {
+            callHistory.unshift({
+                ...data,
+                timestamp: new Date().toLocaleString()
+            });
+
+            const container = document.getElementById('callHistory');
+            container.innerHTML = callHistory.slice(0, 10).map(call => `
+                <div style="padding: 10px; border-bottom: 1px solid #e2e8f0;">
+                    <div><strong>${call.callerNumber || call.number || 'Unknown'}</strong></div>
+                    <div style="font-size: 12px; color: #718096;">${call.timestamp}</div>
+                    <div style="font-size: 12px;">Duration: ${formatDuration(call.duration || 0)}</div>
+                </div>
+            `).join('');
+        }
+
+        function clearCallHistory() {
+            callHistory = [];
+            document.getElementById('callHistory').innerHTML = '<div style="text-align: center; color: #718096; padding: 20px;">No call history yet</div>';
+        }
+
+        // Timer functions
+        function startCallTimer() {
+            callStartTime = Date.now();
+            callTimer = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+                const formatted = formatDuration(elapsed);
+                document.getElementById('customerCallTime').textContent = formatted;
+                document.getElementById('currentCallDuration').textContent = formatted;
+            }, 1000);
+        }
+
+        function stopCallTimer() {
+            if (callTimer) {
+                clearInterval(callTimer);
+                callTimer = null;
+            }
+        }
+
+        function formatDuration(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Utility functions
+        function addLog(message) {
+            const log = document.getElementById('eventLog');
+            const time = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<span style="color: #68d391;">[${time}]</span> ${message}`;
+            log.insertBefore(logEntry, log.firstChild);
+            
+            // Keep only last 50 entries
+            while (log.children.length > 50) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('eventLog').innerHTML = '';
+        }
+
+        function refreshStats() {
+            getDashboardData();
+            addLog('🔄 Refreshing statistics...');
+        }
+
+        function playNotificationSound() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } catch (error) {
+                console.log('Cannot play notification sound:', error);
+            }
+        }
+
+        // Auto refresh dashboard every 10 seconds
+        setInterval(() => {
+            if (isLoggedIn && agentSocket) {
+                getDashboardData();
+            }
+        }, 10000);
+    </script>
+</body>
+</html>

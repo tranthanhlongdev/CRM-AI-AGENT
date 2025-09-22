@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM WebSocket Integration Test</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        
+        .log {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 5px;
+            border-radius: 2px;
+        }
+        .log-info { background: #e7f3ff; }
+        .log-success { background: #e8f5e8; }
+        .log-error { background: #ffe7e7; }
+        .log-warning { background: #fff8e1; }
+        
+        .call-info {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .call-actions {
+            margin-top: 10px;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>🏢 CRM WebSocket Integration Test</h1>
+    
+    <div class="grid">
+        <!-- Connection Status -->
+        <div class="container">
+            <h2>🔌 Connection Status</h2>
+            <div id="connectionStatus" class="status disconnected">
+                Disconnected
+            </div>
+            <button id="connectBtn" class="btn-primary">Connect to VoiceBot Server</button>
+            <button id="disconnectBtn" class="btn-danger" disabled>Disconnect</button>
+            
+            <div class="info">
+                <strong>Server URL:</strong> http://localhost:8000<br>
+                <strong>User Type:</strong> crm_system<br>
+                <strong>User ID:</strong> <span id="userId">crm_test_user</span>
+            </div>
+        </div>
+        
+        <!-- Current Call -->
+        <div class="container">
+            <h2>📞 Current Call</h2>
+            <div id="currentCall">
+                <div class="info">No incoming call</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Controls -->
+    <div class="container">
+        <h2>🎮 Test Controls</h2>
+        <button id="simulateCallBtn" class="btn-warning">Simulate Incoming Call</button>
+        <button id="sendStatsBtn" class="btn-primary">Request Dashboard Stats</button>
+        <button id="testNotificationBtn" class="btn-success">Test Browser Notification</button>
+        <button id="clearLogBtn" class="btn-danger">Clear Log</button>
+    </div>
+    
+    <!-- Activity Log -->
+    <div class="container">
+        <h2>📋 Activity Log</h2>
+        <div id="activityLog" class="log"></div>
+    </div>
+
+    <script>
+        class CRMWebSocketTest {
+            constructor() {
+                this.socket = null;
+                this.isConnected = false;
+                this.currentCall = null;
+                this.userId = 'crm_test_user_' + Date.now();
+                
+                this.initializeUI();
+                this.setupEventListeners();
+                
+                // Update user ID display
+                document.getElementById('userId').textContent = this.userId;
+                
+                // Request notification permission
+                this.requestNotificationPermission();
+            }
+            
+            initializeUI() {
+                this.connectBtn = document.getElementById('connectBtn');
+                this.disconnectBtn = document.getElementById('disconnectBtn');
+                this.connectionStatus = document.getElementById('connectionStatus');
+                this.currentCallDiv = document.getElementById('currentCall');
+                this.activityLog = document.getElementById('activityLog');
+                
+                this.simulateCallBtn = document.getElementById('simulateCallBtn');
+                this.sendStatsBtn = document.getElementById('sendStatsBtn');
+                this.testNotificationBtn = document.getElementById('testNotificationBtn');
+                this.clearLogBtn = document.getElementById('clearLogBtn');
+            }
+            
+            setupEventListeners() {
+                this.connectBtn.addEventListener('click', () => this.connect());
+                this.disconnectBtn.addEventListener('click', () => this.disconnect());
+                this.simulateCallBtn.addEventListener('click', () => this.simulateIncomingCall());
+                this.sendStatsBtn.addEventListener('click', () => this.requestStats());
+                this.testNotificationBtn.addEventListener('click', () => this.testNotification());
+                this.clearLogBtn.addEventListener('click', () => this.clearLog());
+            }
+            
+            connect() {
+                this.log('🔄 Connecting to VoiceBot server...', 'info');
+                
+                this.socket = io('http://localhost:8000', {
+                    transports: ['websocket', 'polling'],
+                    timeout: 10000,
+                    forceNew: true
+                });
+                
+                this.setupSocketListeners();
+            }
+            
+            setupSocketListeners() {
+                this.socket.on('connect', () => {
+                    this.log('✅ Connected to VoiceBot server', 'success');
+                    this.isConnected = true;
+                    this.updateConnectionStatus();
+                    this.joinCallCenter();
+                });
+                
+                this.socket.on('disconnect', (reason) => {
+                    this.log(`❌ Disconnected: ${reason}`, 'error');
+                    this.isConnected = false;
+                    this.currentCall = null;
+                    this.updateConnectionStatus();
+                    this.updateCurrentCall();
+                });
+                
+                this.socket.on('connect_error', (error) => {
+                    this.log(`🚨 Connection error: ${error.message}`, 'error');
+                    this.isConnected = false;
+                    this.updateConnectionStatus();
+                });
+                
+                this.socket.on('joined_call_center', (data) => {
+                    this.log(`🏢 Joined call center: ${JSON.stringify(data)}`, 'success');
+                });
+                
+                this.socket.on('incoming_call_to_crm', (data) => {
+                    this.log(`📞 Incoming call: ${JSON.stringify(data)}`, 'info');
+                    this.currentCall = data;
+                    this.updateCurrentCall();
+                    this.showNotification('Incoming Call', `From: ${data.callerNumber}`);
+                });
+                
+                this.socket.on('call_answered', (data) => {
+                    this.log(`✅ Call answered: ${JSON.stringify(data)}`, 'success');
+                    if (this.currentCall && this.currentCall.callId === data.call?.callId) {
+                        this.currentCall.status = 'connected';
+                        this.updateCurrentCall();
+                    }
+                });
+                
+                this.socket.on('call_ended', (data) => {
+                    this.log(`📴 Call ended: ${JSON.stringify(data)}`, 'warning');
+                    if (this.currentCall && this.currentCall.callId === data.callId) {
+                        this.currentCall = null;
+                        this.updateCurrentCall();
+                    }
+                });
+                
+                this.socket.on('agent_status_update', (data) => {
+                    this.log(`👤 Agent status: ${data.agentName} -> ${data.status}`, 'info');
+                });
+                
+                this.socket.on('real_time_stats', (data) => {
+                    this.log(`📊 Stats: ${JSON.stringify(data)}`, 'info');
+                });
+                
+                this.socket.on('error', (error) => {
+                    this.log(`🚨 Socket error: ${JSON.stringify(error)}`, 'error');
+                });
+            }
+            
+            joinCallCenter() {
+                const joinData = {
+                    userType: 'crm_system',
+                    userId: this.userId,
+                    clientInfo: {
+                        platform: 'web',
+                        version: '1.0.0',
+                        timestamp: new Date().toISOString(),
+                        userAgent: navigator.userAgent,
+                        url: window.location.href
+                    }
+                };
+                
+                this.log(`🔗 Joining call center: ${JSON.stringify(joinData)}`, 'info');
+                this.socket.emit('join_call_center', joinData);
+            }
+            
+            disconnect() {
+                if (this.socket) {
+                    this.socket.disconnect();
+                    this.socket = null;
+                }
+                this.isConnected = false;
+                this.currentCall = null;
+                this.updateConnectionStatus();
+                this.updateCurrentCall();
+                this.log('🔌 Disconnected manually', 'warning');
+            }
+            
+            answerCall(callId, agentId) {
+                if (!this.isConnected || !this.socket) {
+                    this.log('❌ Not connected to answer call', 'error');
+                    return;
+                }
+                
+                const answerData = {
+                    callId: callId,
+                    agentId: agentId,
+                    source: 'crm_system',
+                    timestamp: new Date().toISOString()
+                };
+                
+                this.log(`📞 Answering call: ${JSON.stringify(answerData)}`, 'info');
+                this.socket.emit('answer_call', answerData);
+            }
+            
+            rejectCall(callId, reason = 'crm_test_reject') {
+                if (!this.isConnected || !this.socket) {
+                    this.log('❌ Not connected to reject call', 'error');
+                    return;
+                }
+                
+                const rejectData = {
+                    callId: callId,
+                    endReason: reason,
+                    source: 'crm_system',
+                    timestamp: new Date().toISOString()
+                };
+                
+                this.log(`❌ Rejecting call: ${JSON.stringify(rejectData)}`, 'warning');
+                this.socket.emit('end_call', rejectData);
+            }
+            
+            simulateIncomingCall() {
+                if (!this.isConnected || !this.socket) {
+                    this.log('❌ Not connected to simulate call', 'error');
+                    return;
+                }
+                
+                // Request dashboard stats as a test
+                this.socket.emit('get_dashboard_data');
+                this.log('📊 Requested dashboard data (may trigger demo call)', 'info');
+            }
+            
+            requestStats() {
+                if (!this.isConnected || !this.socket) {
+                    this.log('❌ Not connected to request stats', 'error');
+                    return;
+                }
+                
+                this.socket.emit('get_dashboard_data');
+                this.log('📊 Requested dashboard stats', 'info');
+            }
+            
+            async requestNotificationPermission() {
+                if ('Notification' in window) {
+                    const permission = await Notification.requestPermission();
+                    this.log(`🔔 Notification permission: ${permission}`, 'info');
+                }
+            }
+            
+            showNotification(title, body) {
+                if (Notification.permission === 'granted') {
+                    new Notification(title, {
+                        body: body,
+                        icon: '/favicon.ico',
+                        tag: 'crm-call',
+                        requireInteraction: true
+                    });
+                }
+            }
+            
+            testNotification() {
+                this.showNotification('Test Notification', 'This is a test notification from CRM WebSocket integration');
+                this.log('🔔 Test notification sent', 'info');
+            }
+            
+            updateConnectionStatus() {
+                if (this.isConnected) {
+                    this.connectionStatus.textContent = 'Connected to VoiceBot Server';
+                    this.connectionStatus.className = 'status connected';
+                    this.connectBtn.disabled = true;
+                    this.disconnectBtn.disabled = false;
+                } else {
+                    this.connectionStatus.textContent = 'Disconnected';
+                    this.connectionStatus.className = 'status disconnected';
+                    this.connectBtn.disabled = false;
+                    this.disconnectBtn.disabled = true;
+                }
+            }
+            
+            updateCurrentCall() {
+                if (this.currentCall) {
+                    const customerInfo = this.currentCall.customerInfo;
+                    const assignedAgent = this.currentCall.assignedAgent;
+                    
+                    this.currentCallDiv.innerHTML = `
+                        <div class="call-info">
+                            <h4>📞 Incoming Call - ${this.currentCall.status}</h4>
+                            <p><strong>Call ID:</strong> ${this.currentCall.callId}</p>
+                            <p><strong>From:</strong> ${this.currentCall.callerNumber}</p>
+                            <p><strong>To:</strong> ${this.currentCall.calledNumber}</p>
+                            <p><strong>Start Time:</strong> ${new Date(this.currentCall.startTime).toLocaleString()}</p>
+                            <p><strong>Source:</strong> ${this.currentCall.source}</p>
+                            
+                            ${customerInfo ? `
+                                <h5>👤 Customer Info:</h5>
+                                <p><strong>Name:</strong> ${customerInfo.fullName}</p>
+                                <p><strong>CIF:</strong> ${customerInfo.cif}</p>
+                                <p><strong>Email:</strong> ${customerInfo.email || 'N/A'}</p>
+                            ` : '<p><em>No customer data</em></p>'}
+                            
+                            ${assignedAgent ? `
+                                <h5>🧑‍💼 Assigned Agent:</h5>
+                                <p><strong>Name:</strong> ${assignedAgent.fullName}</p>
+                                <p><strong>ID:</strong> ${assignedAgent.id}</p>
+                                <p><strong>Status:</strong> ${assignedAgent.status}</p>
+                            ` : '<p><em>No assigned agent</em></p>'}
+                            
+                            <div class="call-actions">
+                                <button onclick="crmTest.answerCall('${this.currentCall.callId}', ${assignedAgent?.id || 1})" class="btn-success">
+                                    ✅ Answer Call
+                                </button>
+                                <button onclick="crmTest.rejectCall('${this.currentCall.callId}')" class="btn-danger">
+                                    ❌ Reject Call
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    this.currentCallDiv.innerHTML = '<div class="info">No incoming call</div>';
+                }
+            }
+            
+            log(message, type = 'info') {
+                const now = new Date().toLocaleTimeString();
+                const logEntry = document.createElement('div');
+                logEntry.className = `log-entry log-${type}`;
+                logEntry.innerHTML = `[${now}] ${message}`;
+                
+                this.activityLog.appendChild(logEntry);
+                this.activityLog.scrollTop = this.activityLog.scrollHeight;
+                
+                // Keep only last 100 entries
+                const entries = this.activityLog.querySelectorAll('.log-entry');
+                if (entries.length > 100) {
+                    entries[0].remove();
+                }
+                
+                console.log(`[CRM WebSocket] ${message}`);
+            }
+            
+            clearLog() {
+                this.activityLog.innerHTML = '';
+                this.log('📋 Log cleared', 'info');
+            }
+        }
+        
+        // Initialize test
+        let crmTest;
+        document.addEventListener('DOMContentLoaded', () => {
+            crmTest = new CRMWebSocketTest();
+            
+            // Auto-connect after 1 second
+            setTimeout(() => {
+                crmTest.connect();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
+

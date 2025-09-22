@@ -5,7 +5,7 @@ import DeleteCustomerModal from "./DeleteCustomerModal";
 import SuccessNotification from "./SuccessNotification";
 import customerService from "../services/customerService";
 
-function CustomerManagement() {
+function CustomerManagement({ onCreateTicket }) {
   // Search and filter states
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
@@ -243,6 +243,13 @@ function CustomerManagement() {
   const openDeleteModal = (customer) => {
     setCustomerToDelete(customer);
     setIsDeleteModalOpen(true);
+  };
+
+  // Handle create ticket for customer
+  const handleCreateTicket = (customer) => {
+    if (onCreateTicket) {
+      onCreateTicket(customer);
+    }
   };
 
   const closeDeleteModal = () => {
@@ -555,6 +562,25 @@ function CustomerManagement() {
                         </svg>
                       </button>
                       <button
+                        onClick={() => handleCreateTicket(customer)}
+                        className="text-purple-600 hover:text-purple-800 p-2"
+                        title="Tạo ticket"
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          />
+                        </svg>
+                      </button>
+                      <button
                         onClick={() => openDeleteModal(customer)}
                         className="text-red-600 hover:text-red-700 p-2"
                         title="Xóa khách hàng"
@@ -719,6 +745,25 @@ function CustomerManagement() {
                             strokeLinejoin="round"
                             strokeWidth={2}
                             d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z"
+                          />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleCreateTicket(customer)}
+                        className="text-purple-600 hover:text-purple-800 p-1"
+                        title="Tạo ticket"
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                           />
                         </svg>
                       </button>
